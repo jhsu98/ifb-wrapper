@@ -2,13 +2,31 @@
 iFormBuilder API Wrapper
 
 ## Installation
-TO BE ADDED
+To install the ifb-wrapper ensure you have Python3+ installed. Download using `pip install ifb-wrapper`.
 
 ## Getting Started
-TO BE ADDED
+To start a new project, begin by importing the library:
+
+```
+import ifb
+```
+
+To create an API object, pass the server name, client id, and client secret to `ifb.IFB()`
+
+```
+import ifb
+
+api = ifb.IFB("app.iformbuilder.com","**********","**********")
+```
+
+That's it! The IFB object requires the credentials necessary to request an access token. For more information on creating an iFormBuilder API App please visit: https://iformbuilder.zendesk.com/hc/en-us/articles/201702900-What-are-the-API-Apps-Start-Here-
 
 ## How to Contribute
-TO BE ADDED
+This library is a work in progress and any help is appreciated. There are several ways to contribute to this project outlined below:
+- Use the library and share your experience
+- Reporting [Bugs](https://github.com/jhsu98/ifb-wrapper/issues)
+- Requesting [Features](https://github.com/jhsu98/ifb-wrapper/issues)
+- Submitting [Pull Requests](https://github.com/jhsu98/ifb-wrapper/pulls) linked to an Bug or Feature
 
 ## iFormBuilder Resource Reference
 
