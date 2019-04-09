@@ -1,5 +1,5 @@
 # IFB-Wrapper
-iFormBuilder API Wrapper
+The IFB-Wrapper is an open-source project to simplify and standardize integrations with the iFormBuilder software. Written in Python, IFB-Wrapper allows you to rapidly begin creating integrations without the headache of learning the ins and outs of API authentication and structure.
 
 ## Installation
 To install the ifb-wrapper ensure you have Python3+ installed. Download using `pip install ifb-wrapper`.
