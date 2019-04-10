@@ -14,9 +14,9 @@ import ifb
 To create an API object, pass the server name, client id, and client secret to `ifb.IFB()`
 
 ```
-import ifb
+from ifb import IFB
 
-api = ifb.IFB("app.iformbuilder.com","**********","**********")
+api = IFB("app.iformbuilder.com","**********","**********")
 ```
 
 That's it! The IFB object requires the credentials necessary to request an access token. For more information on creating an iFormBuilder API App please visit: https://iformbuilder.zendesk.com/hc/en-us/articles/201702900-What-are-the-API-Apps-Start-Here-
@@ -73,7 +73,7 @@ This library is a work in progress and any help is appreciated. There are severa
 
 | Method | Resource | Function |
 |:------:|:--------:|:--------:|
-| POST | User Groups | createUserGroups |
+| POST | User Group | createUserGroups |
 | GET | User | readUserGroup |
 | GET | User Groups | readUserGroups |
 | PUT | User Group | updateUserGroup |
@@ -266,3 +266,7 @@ This library is a work in progress and any help is appreciated. There are severa
 | PUT | Record Assignments | updateRecordAssignments |
 | DELETE | Record Assignment | deleteRecordAssignment |
 | DELETE | Record Assignments | deleteRecordAssignments |
+
+## Change Log
+- 1.0.1: Fixed typo in createUserGroup() function and modified getting started example
+- 1.0.0: Version 1.0 hooray!

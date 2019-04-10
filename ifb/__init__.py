@@ -1,7 +1,5 @@
 # __init__.py
-
-# Version of the py-ifb-api-wrapper package
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 import time
 import jwt
@@ -269,7 +267,7 @@ class IFB():
         else:
             return result.json()
 
-    def createUserGroups(self,profile_id,body):
+    def createUserGroup(self,profile_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/user_groups" % (self.server,profile_id)
             print(body)
