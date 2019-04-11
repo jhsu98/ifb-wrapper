@@ -8,11 +8,11 @@ HERE = pathlib.Path(__file__).parent
 README = (HERE / "README.md").read_text()
 
 setup(name='ifb-wrapper',
-      version='1.0.1',
+      version='1.0.2',
       description='iFormBuilder API Wrapper',
       long_description=README,
       long_description_content_type="text/markdown",
-      url='',
+      url='https://github.com/jhsu98/ifb-wrapper',
       author='Jonathan Hsu',
       author_email='jhsu@zerionsoftware.com',
       license='MIT',
@@ -20,6 +20,9 @@ setup(name='ifb-wrapper',
       packages=['ifb'],
       install_requires=[
             'pyjwt',
-            'requests'
+            'requests',
+            'random',
+            'secrets',
+            'string'
       ],
       zip_safe=False)
