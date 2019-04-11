@@ -273,6 +273,7 @@ This library is a work in progress and any help is appreciated. There are severa
 | DELETE | Record Assignments | deleteRecordAssignments |
 
 ## Change Log
+- 1.1.2: Removed secrets and string from dependencies list
 - 1.1.1: Removed random from dependencies list
 - 1.1.0: Added new method genPassword(n) to create a password n-characters long
 - 1.0.1: Fixed typo in createUserGroup() function and modified getting started example
