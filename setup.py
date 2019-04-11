@@ -20,8 +20,6 @@ setup(name='ifb-wrapper',
       packages=['ifb'],
       install_requires=[
             'pyjwt',
-            'requests',
-            'secrets',
-            'string'
+            'requests'
       ],
       zip_safe=False)
