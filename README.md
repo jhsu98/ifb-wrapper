@@ -273,6 +273,6 @@ This library is a work in progress and any help is appreciated. There are severa
 | DELETE | Record Assignments | deleteRecordAssignments |
 
 ## Change Log
-- 1.0.2: Added new method genPassword(n) to create a password n-characters long
+- 1.1.0: Added new method genPassword(n) to create a password n-characters long
 - 1.0.1: Fixed typo in createUserGroup() function and modified getting started example
 - 1.0.0: Version 1.0 hooray!

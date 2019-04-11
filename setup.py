@@ -8,7 +8,7 @@ HERE = pathlib.Path(__file__).parent
 README = (HERE / "README.md").read_text()
 
 setup(name='ifb-wrapper',
-      version='1.0.2',
+      version='1.1.0',
       description='iFormBuilder API Wrapper',
       long_description=README,
       long_description_content_type="text/markdown",
