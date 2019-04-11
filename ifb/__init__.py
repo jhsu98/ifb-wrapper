@@ -5,6 +5,9 @@ import time
 import jwt
 import json
 import requests
+import string
+from secrets import choice
+import random
  
 class IFB():
 
@@ -22,6 +25,25 @@ class IFB():
         except Exception as e:
             print(e)
             return
+
+    ####################################
+    ## MISC RESOURCES
+    ####################################
+    def genPassword(self,n=8):
+        if n < 8:
+            return False
+
+        uppercase = string.ascii_uppercase
+        numbers = string.digits
+        specials = "!@#$%^&"
+        pool = string.ascii_letters + numbers + specials
+
+        password = ''.join(choice(specials))
+        password += ''.join(choice(numbers))
+        password += ''.join(choice(uppercase))
+        password += ''.join(choice(pool) for i in range(n-3))
+
+        return ''.join(random.sample(password,len(password)))
 
     ####################################
     ## TOKEN RESOURCES
