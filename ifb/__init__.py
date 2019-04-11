@@ -1,9 +1,9 @@
 # __init__.py
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 import time
-import jwt
 import json
+import jwt
 import requests
 import string
 from secrets import choice
