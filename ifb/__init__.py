@@ -1,5 +1,5 @@
 # __init__.py
-__version__ = "1.1.2"
+__version__ = "1.2.0"
 
 import time
 import json
@@ -44,6 +44,15 @@ class IFB():
         password += ''.join(choice(pool) for i in range(n-3))
 
         return ''.join(random.sample(password,len(password)))
+
+    def sortOptionList(self,profile_id,option_list_id,reverse=False):
+        options = self.readAllOptions(profile_id,option_list_id,"sort_order,key_value")
+        sorted_options = sorted(options, key=lambda k: k["key_value"],reverse=reverse)
+        
+        for i in range(len(sorted_options)):
+            sorted_options[i]['sort_order'] = i
+
+        self.updateOptions(profile_id,option_list_id,sorted_options)
 
     ####################################
     ## TOKEN RESOURCES
@@ -1157,6 +1166,17 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.delete(request)
+            result.raise_for_status()
+        except Exception as e:
+            print(e)
+            return
+        else:
+            return result.json()
+
+    def createPageTriggerPost(self,profile_id,page_id,body):
+        try:
+            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/trigger_posts" % (self.server,profile_id,page_id)
+            result = self.session.post(request,data=json.dumps(body))
             result.raise_for_status()
         except Exception as e:
             print(e)
