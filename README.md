@@ -34,7 +34,6 @@ This library is a work in progress and any help is appreciated. There are severa
 - Shared Page
 - Page Feed
 - Page Email Alert
-- Trigger Record Post
 - Notification
 - Private Media
 - Device License
@@ -43,6 +42,7 @@ This library is a work in progress and any help is appreciated. There are severa
 | Function | Description |
 |:--------:|:------------|
 | genPassword(n) | Return a password `n` characters long that includes a minimum of 1 special character, uppercase letter, and digit |
+| sortOptionList(profile_id,option_list_id,reverse) | Sort a given option list by key value. Reverse sort order if `reverse` True |
 
 ### Token Resource
 | Method | Resource | Function |
@@ -180,6 +180,10 @@ This library is a work in progress and any help is appreciated. There are severa
 | DELETE | HTTP Callback | deletePageEndpoint |
 | DELETE | HTTP Callbacks | deletePageEndpoints |
 
+| Method | Resource | Function |
+|:------:|:--------:|:--------:|
+| POST | Trigger POST Action | createPageTriggerPost |
+
 ### Element
 | Method | Resource | Function |
 |:------:|:--------:|:--------:|
@@ -273,6 +277,7 @@ This library is a work in progress and any help is appreciated. There are severa
 | DELETE | Record Assignments | deleteRecordAssignments |
 
 ## Change Log
+- 1.2.0: Added createPageTriggerPost() and sortOptionList()
 - 1.1.2: Removed secrets and string from dependencies list
 - 1.1.1: Removed random from dependencies list
 - 1.1.0: Added new method genPassword(n) to create a password n-characters long
