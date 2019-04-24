@@ -277,6 +277,7 @@ This library is a work in progress and any help is appreciated. There are severa
 | DELETE | Record Assignments | deleteRecordAssignments |
 
 ## Change Log
+- 1.3.0: Added deleteAllRecords()
 - 1.2.0: Added createPageTriggerPost() and sortOptionList()
 - 1.1.2: Removed secrets and string from dependencies list
 - 1.1.1: Removed random from dependencies list

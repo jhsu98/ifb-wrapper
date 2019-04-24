@@ -1,5 +1,5 @@
 # __init__.py
-__version__ = "1.2.0"
+__version__ = "1.3.0"
 
 import time
 import json
@@ -1871,6 +1871,25 @@ class IFB():
             return
         else:
             return result.json()
+
+    def deleteAllRecords(self,profile_id,page_id,grammar="id(>\"0\")"):
+        offset = 0
+        limit = 1000
+        total = 0
+
+        while True:
+            try:
+                request = self.deleteRecords(profile_id,page_id,grammar,offset,limit)
+                if len(request) == 0:
+                    break
+                else:
+                    total += len(request)
+                    print("Deleted %s records, %s total..." % (len(request),total))
+            except Exception as e:
+                print(e)
+                return False
+
+        return True
 
     def createRecordAssignments(self,profile_id,page_id,record_id,body):
         try:
