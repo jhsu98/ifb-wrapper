@@ -289,6 +289,7 @@ This library is a work in progress and any help is appreciated. There are severa
 | POST | Notification | createNotification |
 
 ## Change Log
+- 1.4.1: Removed 'csv' from setup.py install_requires
 - 1.4.0: Added replaceRecords(), deletePersonalData() and createNotification()
 - 1.3.0: Added deleteAllRecords()
 - 1.2.0: Added createPageTriggerPost() and sortOptionList()
