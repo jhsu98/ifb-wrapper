@@ -11,7 +11,7 @@ To start a new project, begin by importing the library:
 import ifb
 ```
 
-To create an API object, pass the server name, client id, and client secret to `ifb.IFB()`
+To create an API object, pass the server name, client id, and client secret to `IFB()`
 
 ```
 from ifb import IFB
@@ -43,7 +43,8 @@ This library is a work in progress and any help is appreciated. There are severa
 |:--------:|:------------|
 | genPassword(n) | Return a password `n` characters long that includes a minimum of 1 special character, uppercase letter, and digit |
 | sortOptionList(profile_id,option_list_id,reverse) | Sort a given option list by key value. Reverse sort order if `reverse` True |
-
+| replaceRecords(profile_id,page_id,data) | Delete all records in a table and create records from `data` |
+| deletePersonalData(profile_id,page_id) | Delete data in elements with 'Personal Data' checkbox |
 ### Token Resource
 | Method | Resource | Function |
 |:------:|:--------:|:--------:|
@@ -182,6 +183,11 @@ This library is a work in progress and any help is appreciated. There are severa
 
 | Method | Resource | Function |
 |:------:|:--------:|:--------:|
+| POST | Email Alert | createPageEmailAlert |
+| GET | Email Alert | readPageEmailAlerts |
+
+| Method | Resource | Function |
+|:------:|:--------:|:--------:|
 | POST | Trigger POST Action | createPageTriggerPost |
 
 ### Element
@@ -265,6 +271,7 @@ This library is a work in progress and any help is appreciated. There are severa
 | PUT | Records | updateRecords |
 | DELETE | Record | deleteRecord |
 | DELETE | Records | deleteRecords |
+| DELETE | * | deleteAllRecords |
 
 | Method | Resource | Function |
 |:------:|:--------:|:--------:|
@@ -276,7 +283,13 @@ This library is a work in progress and any help is appreciated. There are severa
 | DELETE | Record Assignment | deleteRecordAssignment |
 | DELETE | Record Assignments | deleteRecordAssignments |
 
+### Notification
+| Method | Resource | Function |
+|:------:|:--------:|:--------:|
+| POST | Notification | createNotification |
+
 ## Change Log
+- 1.4.0: Added replaceRecords(), deletePersonalData() and createNotification()
 - 1.3.0: Added deleteAllRecords()
 - 1.2.0: Added createPageTriggerPost() and sortOptionList()
 - 1.1.2: Removed secrets and string from dependencies list

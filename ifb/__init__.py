@@ -1,12 +1,14 @@
 # __init__.py
-__version__ = "1.3.0"
+__version__ = "1.4.0"
 
 import time
+import csv
 import json
 import jwt
 import requests
 import string
 from secrets import choice
+from collections import OrderedDict
 import random
  
 class IFB():
@@ -53,6 +55,53 @@ class IFB():
             sorted_options[i]['sort_order'] = i
 
         self.updateOptions(profile_id,option_list_id,sorted_options)
+
+    def replaceRecords(self,profile_id,page_id,data):
+        # DELETE EXISTING RECORDS
+        print("Deleting all data...")
+        self.deleteAllRecords(profile_id,page_id)
+
+        # TRANSFORM DATA TO { "element_name": key, "value": value }
+        for i in range(len(data)):
+            obj = data[i]
+            arr = { "fields": [] }
+
+            for key in obj:
+                if obj[key] is not None:
+                    arr["fields"].append({ "element_name": key, "value": obj[key]})
+
+            data[i] = arr
+
+        # CREATE NEW RECORDS
+        i = 0
+        while i < len(data):
+            step = 1000
+            start = i
+            stop = i + step if i + step < len(data) else len(data)
+
+            section = data[start:stop]
+
+            print("Creating records %s to %s" % (str(start+1),str(stop)))
+            self.createRecords(profile_id,page_id,section)
+
+            i += step
+
+    def deletePersonalData(self,profile_id,page_id):
+        # GET ELEMENTS WITH reference_id_1 == "PERSONAL_DATA"
+        elements = self.readAllElements(profile_id,page_id,"name,reference_id_5,data_type,data_size")
+
+        body = {"fields": []}
+
+        for i in range(len(elements)):
+            if elements[i]['reference_id_5'] == "PERSONAL_DATA":
+                body['fields'].append({"element_name": elements[i]['name'], "value": ""})
+            elif elements[i]['data_type'] == 18:
+                self.deletePersonalData(profile_id,elements[i]['data_size'])
+            else:
+                pass
+
+        self.updateRecords(profile_id,page_id,body,'id(>"0")')
+        print("Page <%s> cleaned..." % page_id)
 
     ####################################
     ## TOKEN RESOURCES
@@ -1943,6 +1992,22 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.delete(request)
+            result.raise_for_status()
+        except Exception as e:
+            print(e)
+            return
+        else:
+            return result.json()
+
+    ####################################
+    ## NOTIFICATION RESOURCES
+    ####################################
+
+    def createNotification(self,profile_id,users,message):
+        try:
+            body = {"message": message, "users": users}
+            request = "https://%s/exzact/api/v60/profiles/%s/notifications" % (self.server,profile_id)
+            result = self.session.post(request,data=json.dumps(body))
             result.raise_for_status()
         except Exception as e:
             print(e)
