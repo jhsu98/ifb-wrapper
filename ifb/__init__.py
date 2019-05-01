@@ -1,5 +1,5 @@
 # __init__.py
-__version__ = "1.4.1"
+__version__ = "1.4.2"
 
 import time
 import csv
@@ -2008,6 +2008,34 @@ class IFB():
             body = {"message": message, "users": users}
             request = "https://%s/exzact/api/v60/profiles/%s/notifications" % (self.server,profile_id)
             result = self.session.post(request,data=json.dumps(body))
+            result.raise_for_status()
+        except Exception as e:
+            print(e)
+            return
+        else:
+            return result.json()
+
+    ####################################
+    ## DEVICE LICENSE RESOURCES
+    ####################################
+
+    def readDeviceLicense(self,profile_id,license_id):
+        try:
+            request = "https://%s/exzact/api/v60/profiles/%s/licenses/%s" % (self.server,profile_id,license_id)
+            result = self.session.get(request)
+            result.raise_for_status()
+        except Exception as e:
+            print(e)
+            return
+        else:
+            return result.json()
+
+    def readDeviceLicenses(self,profile_id,grammar=None,offset=0,limit=100):
+        try:
+            request = "https://%s/exzact/api/v60/profiles/%s/licenses?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
+            if grammar != None:
+                request += "&fields=%s" % grammar
+            result = self.session.get(request)
             result.raise_for_status()
         except Exception as e:
             print(e)
