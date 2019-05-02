@@ -30,12 +30,6 @@ This library is a work in progress and any help is appreciated. There are severa
 
 ## iFormBuilder Resource Reference
 
-### Currently Unsupported Resources
-- Shared Page
-- Page Feed
-- Page Email Alert
-- Private Media
-
 ### Extra Functions
 | Function | Description |
 |:--------:|:------------|
@@ -151,6 +145,13 @@ This library is a work in progress and any help is appreciated. There are severa
 
 | Method | Resource | Function |
 |:------:|:--------:|:--------:|
+| POST | Shared Page Entries | createPageShares |
+| GET | Shared Page Entries | readPageShares |
+| PUT | Shared Page Entries | updatePageShares |
+| DELETE | Shared Page Entries | deletePageShares |
+
+| Method | Resource | Function |
+|:------:|:--------:|:--------:|
 | POST | Page Dynamic Attributes | createPageDynamicAttributes |
 | GET | Page Dynamic Attribute | readPageDynamicAttribute |
 | GET | Page Dynamic Attributes | readPageDynamicAttributes |
@@ -186,7 +187,15 @@ This library is a work in progress and any help is appreciated. There are severa
 
 | Method | Resource | Function |
 |:------:|:--------:|:--------:|
+| GET | Private Media | readPrivateMedia |
+
+| Method | Resource | Function |
+|:------:|:--------:|:--------:|
 | POST | Trigger POST Action | createPageTriggerPost |
+
+| Method | Resource | Function |
+|:------:|:--------:|:--------:|
+| GET | Page Feed | readPageFeed |
 
 ### Element
 | Method | Resource | Function |
@@ -293,6 +302,7 @@ This library is a work in progress and any help is appreciated. There are severa
 | GET | Device Licenses | readDeviceLicenses |
 
 ## Change Log
+- 1.4.3: Added Shared Page resource, Email Alerts resource, Page Feed resource, Private Media resource
 - 1.4.2: Added Device License resource
 - 1.4.1: Removed 'csv' from setup.py install_requires
 - 1.4.0: Added replaceRecords(), deletePersonalData() and createNotification()

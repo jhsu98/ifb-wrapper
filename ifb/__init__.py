@@ -1,5 +1,5 @@
 # __init__.py
-__version__ = "1.4.2"
+__version__ = "1.4.3"
 
 import time
 import csv
@@ -973,6 +973,52 @@ class IFB():
         else:
             return result.json()
 
+    def createPageShares(self,profile_id,page_id,body):
+        try:
+            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/shared_page" % (self.server,profile_id,page_id)
+            result = self.session.post(request,data=json.dumps(body))
+            result.raise_for_status()
+        except Exception as e:
+            print(e)
+            return
+        else:
+            return result.json()
+
+    def readPageShares(self,profile_id,page_id,grammar=None,offset=0,limit=100):
+        try:
+            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/shared_page?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
+            if grammar != None:
+                request += "&fields=%s" % grammar
+            result = self.session.get(request)
+            result.raise_for_status()
+        except Exception as e:
+            print(e)
+            return
+        else:
+            return result.json()
+
+    def updatePageShares(self,profile_id,page_id,body):
+        try:
+            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/shared_page" % (self.server,profile_id,page_id)
+            result = self.session.put(request,data=json.dumps(body))
+            result.raise_for_status()
+        except Exception as e:
+            print(e)
+            return
+        else:
+            return result.json()
+
+    def deletePageShares(self,profile_id,page_id,body):
+        try:
+            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/shared_page" % (self.server,profile_id,page_id)
+            result = self.session.delete(request,data=json.dumps(body))
+            result.raise_for_status()
+        except Exception as e:
+            print(e)
+            return
+        else:
+            return result.json()
+
     def createPageDynamicAttributes(self,profile_id,page_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/dynamic_attributes" % (self.server,profile_id,page_id)
@@ -1222,10 +1268,60 @@ class IFB():
         else:
             return result.json()
 
+    def createPageEmailAlerts(self,profile_id,page_id,emails):
+        try:
+            body = [{"email": emails[i]} for i in range(len(emails))]
+            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/email_alerts" % (self.server,profile_id,page_id)
+            result = self.session.post(request,data=json.dumps(body))
+            result.raise_for_status()
+        except Exception as e:
+            print(e)
+            return
+        else:
+            return result.json()
+
+    def readPageEmailAlerts(self,profile_id,page_id,grammar=None,offset=0,limit=100):
+        try:
+            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/email_alerts?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
+            if grammar != None:
+                request += "&fields=%s" % grammar
+            result = self.session.get(request)
+            result.raise_for_status()
+        except Exception as e:
+            print(e)
+            return
+        else:
+            return result.json()
+
+    def deletePageEmailAlerts(self,profile_id,page_id,grammar=None,offset=0,limit=100):
+        try:
+            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/email_alerts?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
+            if grammar != None:
+                request += "&fields=%s" % grammar
+            result = self.session.delete(request)
+            result.raise_for_status()
+        except Exception as e:
+            print(e)
+            return
+        else:
+            return result.json()
+
     def createPageTriggerPost(self,profile_id,page_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/trigger_posts" % (self.server,profile_id,page_id)
             result = self.session.post(request,data=json.dumps(body))
+            result.raise_for_status()
+        except Exception as e:
+            print(e)
+            return
+        else:
+            return result.json()
+
+    def readPageFeed(self,profile_id,page_id,grammar=None,offset=0,limit=100,deep=False):
+        try:
+            deep = 1 if deep == True else 0
+            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/feed?offset=%s&limit=%s&deep=%s" % (self.server,profile_id,page_id,offset,limit,deep)
+            result = self.session.get(request)
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2008,6 +2104,21 @@ class IFB():
             body = {"message": message, "users": users}
             request = "https://%s/exzact/api/v60/profiles/%s/notifications" % (self.server,profile_id)
             result = self.session.post(request,data=json.dumps(body))
+            result.raise_for_status()
+        except Exception as e:
+            print(e)
+            return
+        else:
+            return result.json()
+
+    ####################################
+    ## PRIVATE MEDIA RESOURCES
+    ####################################
+
+    def readNotification(self,profile_id,media_url):
+        try:
+            request = "https://%s/exzact/api/v60/profiles/%s/media?URL=%s" % (self.server,profile_id,media_url)
+            result = self.session.get(request)
             result.raise_for_status()
         except Exception as e:
             print(e)
