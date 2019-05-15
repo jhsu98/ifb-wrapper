@@ -8,7 +8,7 @@ To install the ifb-wrapper ensure you have Python3+ installed. Download using `p
 To start a new project, begin by importing the library:
 
 ```
-import ifb
+from ifb import IFB
 ```
 
 To create an API object, pass the server name, client id, and client secret to `IFB()`
@@ -37,6 +37,7 @@ This library is a work in progress and any help is appreciated. There are severa
 | sortOptionList(profile_id,option_list_id,reverse) | Sort a given option list by key value. Reverse sort order if `reverse` True |
 | replaceRecords(profile_id,page_id,data) | Delete all records in a table and create records from `data` |
 | deletePersonalData(profile_id,page_id) | Delete data in elements with 'Personal Data' checkbox |
+
 ### Token Resource
 | Method | Resource | Function |
 |:------:|:--------:|:--------:|
@@ -302,6 +303,7 @@ This library is a work in progress and any help is appreciated. There are severa
 | GET | Device Licenses | readDeviceLicenses |
 
 ## Change Log
+- 1.5.0: Access token will refresh if there are less than 5 minutes remaining on the current access token
 - 1.4.3: Added Shared Page resource, Email Alerts resource, Page Feed resource, Private Media resource
 - 1.4.2: Added Device License resource
 - 1.4.1: Removed 'csv' from setup.py install_requires
