@@ -1,5 +1,5 @@
 # __init__.py
-__version__ = "1.4.3"
+__version__ = "1.5.0"
 
 import time
 import csv
@@ -10,8 +10,17 @@ import string
 from secrets import choice
 from collections import OrderedDict
 import random
- 
+
 class IFB():
+    class Decorators():
+        @staticmethod
+        def refreshToken(decorated):
+            def wrapper(api,*args,**kwargs):
+                if time.time() - api.access_token_expiration > 0:
+                    api.requestAccessToken()
+                return decorated(api,*args,**kwargs)
+
+            return wrapper
 
     def __init__(self,server,client_id,client_secret):
         self.server = server
@@ -19,6 +28,7 @@ class IFB():
         self.client_secret = client_secret
 
         self.access_token = None
+        self.access_token_expiration = None
         self.session = requests.Session()
         self.session.headers.update({ 'Content-Type': 'application/json' })
 
@@ -47,6 +57,7 @@ class IFB():
 
         return ''.join(random.sample(password,len(password)))
 
+    @Decorators.refreshToken
     def sortOptionList(self,profile_id,option_list_id,reverse=False):
         options = self.readAllOptions(profile_id,option_list_id,"sort_order,key_value")
         sorted_options = sorted(options, key=lambda k: k["key_value"],reverse=reverse)
@@ -56,6 +67,7 @@ class IFB():
 
         self.updateOptions(profile_id,option_list_id,sorted_options)
 
+    @Decorators.refreshToken
     def replaceRecords(self,profile_id,page_id,data):
         # DELETE EXISTING RECORDS
         print("Deleting all data...")
@@ -86,6 +98,7 @@ class IFB():
 
             i += step
 
+    @Decorators.refreshToken
     def deletePersonalData(self,profile_id,page_id):
         # GET ELEMENTS WITH reference_id_1 == "PERSONAL_DATA"
         elements = self.readAllElements(profile_id,page_id,"name,reference_id_5,data_type,data_size")
@@ -135,7 +148,9 @@ class IFB():
         else:
             self.access_token = request_token.json()['access_token']
             self.session.headers.update({ 'Authorization': "Bearer %s" % self.access_token })
+            self.access_token_expiration = time.time() + 3300
 
+    @Decorators.refreshToken
     def readAccessToken(self):
         try:
             request = "https://%s/exzact/api/v60/token" % (self.server)
@@ -151,6 +166,7 @@ class IFB():
     ## PROFILE RESOURCES
     ####################################
 
+    @Decorators.refreshToken
     def createProfile(self,body):
         try:
             request = "https://%s/exzact/api/v60/profiles" % self.server
@@ -162,6 +178,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readProfile(self,profile_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s" % (self.server,profile_id)
@@ -173,6 +190,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readProfiles(self,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles?offset=%s&limit=%s" % (self.server,offset,limit)
@@ -186,6 +204,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readAllProfiles(self,grammar=None):
         offset = 0
         limit = 100
@@ -206,6 +225,7 @@ class IFB():
         
         return profiles
 
+    @Decorators.refreshToken
     def updateProfile(self,profile_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s" % (self.server,profile_id)
@@ -217,6 +237,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readCompanyInfo(self,profile_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/company_info" % (self.server,profile_id)
@@ -228,6 +249,7 @@ class IFB():
         else:
             return get_company_info.json()
 
+    @Decorators.refreshToken
     def updateCompanyInfo(self,profile_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/company_info" % (self.server,profile_id)
@@ -243,6 +265,7 @@ class IFB():
     ## USER RESOURCES
     ####################################
 
+    @Decorators.refreshToken
     def createUsers(self,profile_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users" % (self.server,profile_id)
@@ -255,6 +278,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readUser(self,profile_id,user_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s" % (self.server,profile_id,user_id)
@@ -266,6 +290,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readUsers(self,profile_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
@@ -279,6 +304,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readAllUsers(self,profile_id,grammar=None):
         offset = 0
         limit = 100
@@ -299,6 +325,7 @@ class IFB():
 
         return users
 
+    @Decorators.refreshToken
     def updateUser(self,profile_id,user_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s" % (self.server,profile_id,user_id)
@@ -310,6 +337,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updateUsers(self,profile_id,body,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
@@ -323,6 +351,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteUser(self,profile_id,user_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s" % (self.server,profile_id,user_id)
@@ -334,6 +363,7 @@ class IFB():
         else:
             return delete_user.json()
 
+    @Decorators.refreshToken
     def deleteUsers(self,profile_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
@@ -347,6 +377,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def createUserGroup(self,profile_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/user_groups" % (self.server,profile_id)
@@ -359,6 +390,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readUserGroup(self,profile_id,user_group_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/user_groups/%s" % (self.server,profile_id,user_group_id)
@@ -370,6 +402,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readUserGroups(self,profile_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/user_groups?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
@@ -383,6 +416,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updateUserGroup(self,profile_id,user_group_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/user_groups/%s" % (self.server,profile_id,user_group_id)
@@ -394,6 +428,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updateUserGroups(self,profile_id,body,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/user_groups?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
@@ -407,6 +442,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteUserGroup(self,profile_id,user_group_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/user_groups/%s" % (self.server,profile_id,user_group_id)
@@ -418,6 +454,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteUserGroups(self,profile_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/user_groups?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
@@ -431,6 +468,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def createUserPageAssignments(self,profile_id,user_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s/page_assignments" % (self.server,profile_id,user_id)
@@ -442,6 +480,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readUserPageAssignment(self,profile_id,user_id,page_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s/page_assignments/%s" % (self.server,profile_id,user_id,page_id)
@@ -453,6 +492,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readUserPageAssignments(self,profile_id,user_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s/page_assignments?offset=%s&limit=%s" % (self.server,profile_id,user_id,offset,limit)
@@ -466,6 +506,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updateUserPageAssignment(self,profile_id,user_id,page_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s/page_assignments/%s" % (self.server,profile_id,user_id,page_id)
@@ -477,6 +518,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updateUserPageAssignments(self,profile_id,user_id,body,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s/page_assignments?offset=%s&limit=%s" % (self.server,profile_id,user_id,offset,limit)
@@ -490,6 +532,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteUserPageAssignment(self,profile_id,user_id,page_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s/page_assignments/%s" % (self.server,profile_id,user_id,page_id)
@@ -501,6 +544,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteUserPageAssignments(self,profile_id,user_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s/page_assignments?offset=%s&limit=%s" % (self.server,profile_id,user_id,offset,limit)
@@ -514,6 +558,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def createUserRecordAssignments(self,profile_id,user_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s/record_assignments" % (self.server,profile_id,user_id)
@@ -525,6 +570,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readUserRecordAssignment(self,profile_id,user_id,assignment_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s/record_assignments/%s" % (self.server,profile_id,user_id,assignment_id)
@@ -536,6 +582,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readUserRecordAssignments(self,profile_id,user_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s/record_assignments?offset=%s&limit=%s" % (self.server,profile_id,user_id,offset,limit)
@@ -549,6 +596,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updateUserRecordAssignment(self,profile_id,user_id,assignment_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s/record_assignments/%s" % (self.server,profile_id,user_id,assignment_id)
@@ -560,6 +608,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updateUserRecordAssignments(self,profile_id,user_id,body,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s/record_assignments?offset=%s&limit=%s" % (self.server,profile_id,user_id,offset,limit)
@@ -573,6 +622,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteUserRecordAssignment(self,profile_id,user_id,assignment_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s/record_assignments/%s" % (self.server,profile_id,user_id,assignment_id)
@@ -584,6 +634,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteUserRecordAssignments(self,profile_id,user_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s/record_assignments?offset=%s&limit=%s" % (self.server,profile_id,user_id,offset,limit)
@@ -601,6 +652,7 @@ class IFB():
     ## PAGE RESOURCES
     ####################################
 
+    @Decorators.refreshToken
     def createPage(self,profile_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages" % (self.server,profile_id)
@@ -612,6 +664,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readPage(self,profile_id,page_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s" % (self.server,profile_id,page_id)
@@ -623,6 +676,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readPages(self,profile_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
@@ -636,6 +690,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readAllPages(self,profile_id,grammar=None):
         offset = 0
         limit = 100
@@ -656,6 +711,7 @@ class IFB():
 
         return pages
 
+    @Decorators.refreshToken
     def updatePage(self,profile_id,page_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s" % (self.server,profile_id,page_id)
@@ -667,6 +723,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updatePages(self,profile_id,body,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
@@ -680,6 +737,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deletePage(self,profile_id,page_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s" % (self.server,profile_id,page_id)
@@ -691,6 +749,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deletePages(self,profile_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
@@ -704,6 +763,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def createPageGroup(self,profile_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/page_groups" % (self.server,profile_id)
@@ -715,6 +775,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readPageGroup(self,profile_id,page_group_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/page_groups/%s" % (self.server,profile_id,page_group_id)
@@ -726,6 +787,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readPageGroups(self,profile_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/page_groups?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
@@ -739,6 +801,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updatePageGroup(self,profile_id,page_group_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/page_groups/%s" % (self.server,profile_id,page_group_id)
@@ -750,6 +813,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updatePageGroups(self,profile_id,body,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/page_groups?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
@@ -763,6 +827,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deletePageGroup(self,profile_id,page_group_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/page_groups/%s" % (self.server,profile_id,page_group_id)
@@ -774,6 +839,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deletePageGroups(self,profile_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/page_groups?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
@@ -787,6 +853,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def createPageAssignments(self,profile_id,page_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/assignments" % (self.server,profile_id,page_id)
@@ -798,6 +865,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readPageAssignment(self,profile_id,page_id,user_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/assignments/%s" % (self.server,profile_id,page_id,user_id)
@@ -809,6 +877,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readPageAssignments(self,profile_id,page_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/assignments?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
@@ -822,6 +891,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readAllPageAssignments(self,profile_id,page_id,grammar=None):
         offset = 0
         limit = 100
@@ -842,6 +912,7 @@ class IFB():
 
         return page_assignments
 
+    @Decorators.refreshToken
     def updatePageAssignment(self,profile_id,page_id,user_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/assignments/%s" % (self.server,profile_id,page_id,user_id)
@@ -853,6 +924,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updatePageAssignments(self,profile_id,page_id,body,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/assignments?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
@@ -866,6 +938,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deletePageAssignment(self,profile_id,page_id,user_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/assignments/%s" % (self.server,profile_id,page_id,user_id)
@@ -877,6 +950,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deletePageAssignments(self,profile_id,page_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/assignments?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
@@ -890,6 +964,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def createPageRecordAssignments(self,profile_id,page_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/record_assignments" % (self.server,profile_id,page_id)
@@ -901,6 +976,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readPageRecordAssignment(self,profile_id,page_id,assignment_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/record_assignments/%s" % (self.server,profile_id,page_id,assignment_id)
@@ -912,6 +988,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readPageRecordAssignments(self,profile_id,page_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/record_assignments?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
@@ -925,6 +1002,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updatePageRecordAssignment(self,profile_id,page_id,assignment_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/record_assignments/%s" % (self.server,profile_id,page_id,assignment_id)
@@ -936,6 +1014,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updatePageRecordAssignments(self,profile_id,page_id,body,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/record_assignments?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
@@ -949,6 +1028,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deletePageRecordAssignment(self,profile_id,page_id,assignment_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/record_assignments/%s" % (self.server,profile_id,page_id,assignment_id)
@@ -960,6 +1040,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deletePageRecordAssignments(self,profile_id,page_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/record_assignments?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
@@ -973,6 +1054,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def createPageShares(self,profile_id,page_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/shared_page" % (self.server,profile_id,page_id)
@@ -984,6 +1066,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readPageShares(self,profile_id,page_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/shared_page?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
@@ -997,6 +1080,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updatePageShares(self,profile_id,page_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/shared_page" % (self.server,profile_id,page_id)
@@ -1008,6 +1092,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deletePageShares(self,profile_id,page_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/shared_page" % (self.server,profile_id,page_id)
@@ -1019,6 +1104,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def createPageDynamicAttributes(self,profile_id,page_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/dynamic_attributes" % (self.server,profile_id,page_id)
@@ -1030,6 +1116,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readPageDynamicAttribute(self,profile_id,page_id,attribute_name):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/dynamic_attributes/%s" % (self.server,profile_id,page_id,attribute_name)
@@ -1041,6 +1128,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readPageDynamicAttributes(self,profile_id,page_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/dynamic_attributes?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
@@ -1054,6 +1142,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updatePageDynamicAttribute(self,profile_id,page_id,attribute_name,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/dynamic_attributes/%s" % (self.server,profile_id,page_id,attribute_name)
@@ -1065,6 +1154,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updatePageDynamicAttributes(self,profile_id,page_id,body,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/dynamic_attributes?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
@@ -1078,6 +1168,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deletePageDynamicAttribute(self,profile_id,page_id,attribute_name):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/dynamic_attributes/%s" % (self.server,profile_id,page_id,attribute_name)
@@ -1089,6 +1180,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deletePageDynamicAttributes(self,profile_id,page_id,grammar=None,offset=0,limit=0):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/dynamic_attributes?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
@@ -1102,6 +1194,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def createPageLocalizations(self,profile_id,page_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/localizations" % (self.server,profile_id,page_id)
@@ -1113,6 +1206,7 @@ class IFB():
         else:
             return post_page_localizations.json()
 
+    @Decorators.refreshToken
     def readPageLocalization(self,profile_id,page_id,language_code):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/localizations/%s" % (self.server,profile_id,page_id,language_code)
@@ -1124,6 +1218,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readPageLocalizations(self,profile_id,page_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/localizations?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
@@ -1137,6 +1232,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updatePageLocalization(self,profile_id,page_id,language_code,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/localizations/%s" % (self.server,profile_id,page_id,language_code)
@@ -1148,6 +1244,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updatePageLocalizations(self,profile_id,page_id,body,grammar=None,offset=0,limit=1000):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/localizations?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
@@ -1161,6 +1258,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deletePageLocalization(self,profile_id,page_id,language_code):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/localizations/%s" % (self.server,profile_id,page_id,language_code)
@@ -1172,6 +1270,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deletePageLocalizations(self,profile_id,page_id,grammar=None,offset=0,limit=1000):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/localizations?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
@@ -1185,6 +1284,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def createPageEndpoint(self,profile_id,page_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/http_callbacks" % (self.server,profile_id,page_id)
@@ -1196,6 +1296,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readPageEndpoint(self,profile_id,page_id,endpoint_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/http_callbacks/%s" % (self.server,profile_id,page_id,endpoint_id)
@@ -1220,6 +1321,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updatePageEndpoint(self,profile_id,page_id,endpoint_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/http_callbacks/%s" % (self.server,profile_id,page_id,endpoint_id)
@@ -1244,6 +1346,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deletePageEndpoint(self,profile_id,page_id,endpoint_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/http_callbacks/%s" % (self.server,profile_id,page_id,endpoint_id)
@@ -1268,6 +1371,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def createPageEmailAlerts(self,profile_id,page_id,emails):
         try:
             body = [{"email": emails[i]} for i in range(len(emails))]
@@ -1280,6 +1384,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readPageEmailAlerts(self,profile_id,page_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/email_alerts?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
@@ -1293,6 +1398,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deletePageEmailAlerts(self,profile_id,page_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/email_alerts?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
@@ -1306,6 +1412,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def createPageTriggerPost(self,profile_id,page_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/trigger_posts" % (self.server,profile_id,page_id)
@@ -1317,6 +1424,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readPageFeed(self,profile_id,page_id,grammar=None,offset=0,limit=100,deep=False):
         try:
             deep = 1 if deep == True else 0
@@ -1333,6 +1441,7 @@ class IFB():
     ## ELEMENT RESOURCES
     ####################################
 
+    @Decorators.refreshToken
     def createElements(self,profile_id,page_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements" % (self.server,profile_id,page_id)
@@ -1344,6 +1453,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readElement(self,profile_id,page_id,element_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s" % (self.server,profile_id,page_id,element_id)
@@ -1355,6 +1465,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readElements(self,profile_id,page_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
@@ -1368,6 +1479,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readAllElements(self,profile_id,page_id,grammar=None):
         offset = 0
         limit = 100
@@ -1388,6 +1500,7 @@ class IFB():
 
         return elements
 
+    @Decorators.refreshToken
     def updateElement(self,profile_id,page_id,element_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s" % (self.server,profile_id,page_id,element_id)
@@ -1399,6 +1512,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updateElements(self,profile_id,page_id,body,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
@@ -1412,6 +1526,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteElement(self,profile_id,page_id,element_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s" % (self.server,profile_id,page_id,element_id)
@@ -1423,6 +1538,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteElements(self,profile_id,page_id,grammar=None,offset=0,limit=0):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
@@ -1436,6 +1552,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def createElementDynamicAttributes(self,profile_id,page_id,element_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/dynamic_attributes" % (self.server,profile_id,page_id,element_id)
@@ -1447,6 +1564,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readElementDynamicAttribute(self,profile_id,page_id,element_id,attribute_name):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/dynamic_attributes/%s" % (self.server,profile_id,page_id,element_id,attribute_name)
@@ -1458,6 +1576,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readElementDynamicAttributes(self,profile_id,page_id,element_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/dynamic_attributes?offset=%s&limit=%s" % (self.server,profile_id,page_id,element_id,offset,limit)
@@ -1471,6 +1590,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updateElementDynamicAttribute(self,profile_id,page_id,element_id,attribute_name,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/dynamic_attributes/%s" % (self.server,profile_id,page_id,element_id,attribute_name)
@@ -1482,6 +1602,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updateElementDynamicAttributes(self,profile_id,page_id,element_id,body,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/dynamic_attributes?offset=%s&limit=%s" % (self.server,profile_id,page_id,element_id,offset,limit)
@@ -1495,6 +1616,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteElementDynamicAttribute(self,profile_id,page_id,element_id,attribute_name):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/dynamic_attributes/%s" % (self.server,profile_id,page_id,element_id,attribute_name)
@@ -1506,6 +1628,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteElementDynamicAttributes(self,profile_id,page_id,element_id,grammar=None,offset=0,limit=0):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/dynamic_attributes?offset=%s&limit=%s" % (self.server,profile_id,page_id,element_id,offset,limit)
@@ -1519,6 +1642,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def createElementLocalizations(self,profile_id,page_id,element_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/localizations" % (self.server,profile_id,page_id,element_id)
@@ -1530,6 +1654,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readElementLocalization(self,profile_id,page_id,element_id,language_code):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/localizations/%s" % (self.server,profile_id,page_id,element_id,language_code)
@@ -1541,6 +1666,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readElementLocalizations(self,profile_id,page_id,element_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/localizations?offset=%s&limit=%s" % (self.server,profile_id,page_id,element_id,offset,limit)
@@ -1554,6 +1680,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updateElementLocalization(self,profile_id,page_id,element_id,language_code,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/localizations/%s" % (self.server,profile_id,page_id,element_id,language_code)
@@ -1565,6 +1692,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updateElementLocalizations(self,profile_id,page_id,element_id,body,grammar=None,offset=0,limit=1000):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/localizations?offset=%s&limit=%s" % (self.server,profile_id,page_id,element_id,offset,limit)
@@ -1578,6 +1706,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteElementLocalization(self,profile_id,page_id,element_id,language_code):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/localizations/%s" % (self.server,profile_id,page_id,element_id,language_code)
@@ -1589,6 +1718,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteElementLocalizations(self,profile_id,page_id,element_id,grammar=None,offset=0,limit=1000):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/localizations?offset=%s&limit=%s" % (self.server,profile_id,page_id,element_id,offset,limit)
@@ -1606,6 +1736,7 @@ class IFB():
     ## OPTION LIST RESOURCES
     ####################################
 
+    @Decorators.refreshToken
     def createOptionList(self,profile_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists" % (self.server,profile_id)
@@ -1617,6 +1748,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readOptionList(self,profile_id,option_list_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s" % (self.server,profile_id,option_list_id)
@@ -1628,6 +1760,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readOptionLists(self,profile_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
@@ -1641,6 +1774,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readAllOptionLists(self,profile_id,grammar=None):
         offset = 0
         limit = 100
@@ -1661,6 +1795,7 @@ class IFB():
         
         return option_lists
 
+    @Decorators.refreshToken
     def updateOptionList(self,profile_id,option_list_id,element_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s" % (self.server,profile_id,option_list_id)
@@ -1672,6 +1807,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updateOptionLists(self,profile_id,body,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
@@ -1685,6 +1821,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteOptionList(self,profile_id,option_list_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s" % (self.server,profile_id,option_list_id)
@@ -1696,6 +1833,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteOptionLists(self,profile_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
@@ -1709,6 +1847,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readOptionListDependencies(self,profile_id,option_list_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/dependencies" % (self.server,profile_id,option_list_id)
@@ -1724,6 +1863,7 @@ class IFB():
     ## OPTION RESOURCES
     ####################################
 
+    @Decorators.refreshToken
     def createOptions(self,profile_id,option_list_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options" % (self.server,profile_id,option_list_id)
@@ -1735,6 +1875,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readOption(self,profile_id,option_list_id,option_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s" % (self.server,profile_id,option_list_id,option_id)
@@ -1746,6 +1887,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readOptions(self,profile_id,option_list_id,grammar=None,offset=0,limit=1000):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options?offset=%s&limit=%s" % (self.server,profile_id,option_list_id,offset,limit)
@@ -1759,6 +1901,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readAllOptions(self,profile_id,option_list_id,grammar=None):
         offset = 0
         limit = 1000
@@ -1779,6 +1922,7 @@ class IFB():
         
         return options
 
+    @Decorators.refreshToken
     def updateOption(self,profile_id,option_list_id,option_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s" % (self.server,profile_id,option_list_id,option_id)
@@ -1790,6 +1934,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updateOptions(self,profile_id,option_list_id,body,grammar=None,offset=0,limit=1000):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options?offset=%s&limit=%s" % (self.server,profile_id,option_list_id,offset,limit)
@@ -1803,6 +1948,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteOption(self,profile_id,option_list_id,option_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s" % (self.server,profile_id,option_list_id,option_id)
@@ -1814,6 +1960,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteOptions(self,profile_id,option_list_id,grammar=None,offset=0,limit=1000):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options?offset=%s&limit=%s" % (self.server,profile_id,option_list_id,offset,limit)
@@ -1827,6 +1974,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def createOptionLocalizations(self,profile_id,option_list_id,option_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s/localizations" % (self.server,profile_id,option_list_id,option_id)
@@ -1838,6 +1986,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readOptionLocalization(self,profile_id,option_list_id,option_id,language_code):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s/localizations/%s" % (self.server,profile_id,option_list_id,option_id,language_code)
@@ -1849,6 +1998,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readOptionLocalizations(self,profile_id,option_list_id,option_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s/localizations?offset=%s&limit=%s" % (self.server,profile_id,option_list_id,option_id,offset,limit)
@@ -1862,6 +2012,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updateOptionLocalization(self,profile_id,option_list_id,option_id,language_code,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s/localizations/%s" % (self.server,profile_id,option_list_id,option_id,language_code)
@@ -1873,6 +2024,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updateOptionLocalizations(self,profile_id,option_list_id,option_id,body,grammar=None,offset=0,limit=1000):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s/localizations?offset=%s&limit=%s" % (self.server,profile_id,option_list_id,option_id,offset,limit)
@@ -1886,6 +2038,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteOptionLocalization(self,profile_id,option_list_id,option_id,language_code):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s/localizations/%s" % (self.server,profile_id,option_list_id,option_id,language_code)
@@ -1897,6 +2050,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteOptionLocalizations(self,profile_id,option_list_id,option_id,grammar=None,offset=0,limit=1000):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s/localizations?offset=%s&limit=%s" % (self.server,profile_id,option_list_id,option_id,offset,limit)
@@ -1914,6 +2068,7 @@ class IFB():
     ## RECORD RESOURCES
     ####################################
 
+    @Decorators.refreshToken
     def createRecords(self,profile_id,page_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records" % (self.server,profile_id,page_id)
@@ -1925,6 +2080,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readRecord(self,profile_id,page_id,record_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records/%s" % (self.server,profile_id,page_id,record_id)
@@ -1936,6 +2092,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readRecords(self,profile_id,page_id,grammar=None,offset=0,limit=1000):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
@@ -1949,6 +2106,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readAllRecords(self,profile_id,page_id,grammar=None):
         offset = 0
         limit = 1000
@@ -1969,6 +2127,7 @@ class IFB():
 
         return records
 
+    @Decorators.refreshToken
     def updateRecord(self,profile_id,page_id,record_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records/%s" % (self.server,profile_id,page_id,record_id)
@@ -1980,6 +2139,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def updateRecords(self,profile_id,page_id,body,grammar=None,offset=0,limit=1000):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
@@ -1993,6 +2153,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteRecord(self,profile_id,page_id,record_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records/%s" % (self.server,profile_id,page_id,record_id)
@@ -2004,6 +2165,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteRecords(self,profile_id,page_id,grammar=None,offset=0,limit=1000):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
@@ -2017,6 +2179,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteAllRecords(self,profile_id,page_id,grammar="id(>\"0\")"):
         offset = 0
         limit = 1000
@@ -2036,6 +2199,7 @@ class IFB():
 
         return True
 
+    @Decorators.refreshToken
     def createRecordAssignments(self,profile_id,page_id,record_id,body):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records/%s/assignments" % (self.server,profile_id,page_id,record_id)
@@ -2047,6 +2211,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readRecordAssignment(self,profile_id,page_id,record_id,user_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records/%s/assignments/%s" % (self.server,profile_id,page_id,record_id,user_id)
@@ -2058,6 +2223,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readRecordAssignments(self,profile_id,page_id,record_id,grammar=None,offset=0,limit=1000):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records/%s/assignments?offset=%s&limit=%s" % (self.server,profile_id,page_id,record_id,offset,limit)
@@ -2071,6 +2237,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteRecordAssignment(self,profile_id,page_id,record_id,user_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records/%s/assignments/%s" % (self.server,profile_id,page_id,record_id,user_id)
@@ -2082,6 +2249,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def deleteRecordAssignments(self,profile_id,page_id,record_id,grammar=None,offset=0,limit=1000):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records/%s/assignments?offset=%s&limit=%s" % (self.server,profile_id,page_id,record_id,offset,limit)
@@ -2099,6 +2267,7 @@ class IFB():
     ## NOTIFICATION RESOURCES
     ####################################
 
+    @Decorators.refreshToken
     def createNotification(self,profile_id,users,message):
         try:
             body = {"message": message, "users": users}
@@ -2115,6 +2284,7 @@ class IFB():
     ## PRIVATE MEDIA RESOURCES
     ####################################
 
+    @Decorators.refreshToken
     def readNotification(self,profile_id,media_url):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/media?URL=%s" % (self.server,profile_id,media_url)
@@ -2130,6 +2300,7 @@ class IFB():
     ## DEVICE LICENSE RESOURCES
     ####################################
 
+    @Decorators.refreshToken
     def readDeviceLicense(self,profile_id,license_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/licenses/%s" % (self.server,profile_id,license_id)
@@ -2141,6 +2312,7 @@ class IFB():
         else:
             return result.json()
 
+    @Decorators.refreshToken
     def readDeviceLicenses(self,profile_id,grammar=None,offset=0,limit=100):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/licenses?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
