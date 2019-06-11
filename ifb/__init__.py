@@ -1,5 +1,5 @@
 # __init__.py
-__version__ = "1.5.0"
+__version__ = "1.5.1"
 
 import time
 import csv
@@ -1072,6 +1072,18 @@ class IFB():
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/shared_page?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
             if grammar != None:
                 request += "&fields=%s" % grammar
+            result = self.session.get(request)
+            result.raise_for_status()
+        except Exception as e:
+            print(e)
+            return
+        else:
+            return result.json()
+
+    @Decorators.refreshToken
+    def readPageDependencies(self,profile_id,page_id):
+        try:
+            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/dependencies" % (self.server,profile_id,page_id)
             result = self.session.get(request)
             result.raise_for_status()
         except Exception as e:
