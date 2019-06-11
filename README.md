@@ -153,6 +153,10 @@ This library is a work in progress and any help is appreciated. There are severa
 
 | Method | Resource | Function |
 |:------:|:--------:|:--------:|
+| GET | Page Dependencies | readPageDependencies |
+
+| Method | Resource | Function |
+|:------:|:--------:|:--------:|
 | POST | Page Dynamic Attributes | createPageDynamicAttributes |
 | GET | Page Dynamic Attribute | readPageDynamicAttribute |
 | GET | Page Dynamic Attributes | readPageDynamicAttributes |
@@ -303,6 +307,7 @@ This library is a work in progress and any help is appreciated. There are severa
 | GET | Device Licenses | readDeviceLicenses |
 
 ## Change Log
+- 1.5.1: Added readPageDependencies()
 - 1.5.0: Access token will refresh if there are less than 5 minutes remaining on the current access token
 - 1.4.3: Added Shared Page resource, Email Alerts resource, Page Feed resource, Private Media resource
 - 1.4.2: Added Device License resource
