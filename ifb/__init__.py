@@ -1,5 +1,5 @@
 # __init__.py
-__version__ = "1.5.1"
+__version__ = "1.5.2"
 
 import time
 import csv
@@ -27,6 +27,7 @@ class IFB():
         self.client_id = client_id
         self.client_secret = client_secret
 
+        self.api_calls = 0
         self.access_token = None
         self.access_token_expiration = None
         self.session = requests.Session()
@@ -155,6 +156,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/token" % (self.server)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -171,6 +173,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles" % self.server
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -183,6 +186,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s" % (self.server,profile_id)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -197,6 +201,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -230,6 +235,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s" % (self.server,profile_id)
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -254,6 +260,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/company_info" % (self.server,profile_id)
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -271,6 +278,7 @@ class IFB():
             request = "https://%s/exzact/api/v60/profiles/%s/users" % (self.server,profile_id)
             print(body)
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -283,6 +291,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s" % (self.server,profile_id,user_id)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -297,6 +306,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -330,6 +340,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s" % (self.server,profile_id,user_id)
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -344,6 +355,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -370,6 +382,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -383,6 +396,7 @@ class IFB():
             request = "https://%s/exzact/api/v60/profiles/%s/user_groups" % (self.server,profile_id)
             print(body)
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -395,6 +409,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/user_groups/%s" % (self.server,profile_id,user_group_id)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -409,6 +424,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -421,6 +437,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/user_groups/%s" % (self.server,profile_id,user_group_id)
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -435,6 +452,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -447,6 +465,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/user_groups/%s" % (self.server,profile_id,user_group_id)
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -461,6 +480,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -473,6 +493,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s/page_assignments" % (self.server,profile_id,user_id)
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -485,6 +506,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s/page_assignments/%s" % (self.server,profile_id,user_id,page_id)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -499,6 +521,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -511,6 +534,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s/page_assignments/%s" % (self.server,profile_id,user_id,page_id)
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -525,6 +549,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -537,6 +562,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s/page_assignments/%s" % (self.server,profile_id,user_id,page_id)
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -551,6 +577,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -563,6 +590,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s/record_assignments" % (self.server,profile_id,user_id)
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -575,6 +603,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s/record_assignments/%s" % (self.server,profile_id,user_id,assignment_id)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -589,6 +618,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -601,6 +631,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s/record_assignments/%s" % (self.server,profile_id,user_id,assignment_id)
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -615,6 +646,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -627,6 +659,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/users/%s/record_assignments/%s" % (self.server,profile_id,user_id,assignment_id)
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -641,6 +674,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -657,6 +691,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages" % (self.server,profile_id)
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -669,6 +704,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s" % (self.server,profile_id,page_id)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -683,6 +719,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -716,6 +753,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s" % (self.server,profile_id,page_id)
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -730,6 +768,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -742,6 +781,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s" % (self.server,profile_id,page_id)
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -756,6 +796,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -768,6 +809,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/page_groups" % (self.server,profile_id)
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -780,6 +822,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/page_groups/%s" % (self.server,profile_id,page_group_id)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -794,6 +837,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -806,6 +850,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/page_groups/%s" % (self.server,profile_id,page_group_id)
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -820,6 +865,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -832,6 +878,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/page_groups/%s" % (self.server,profile_id,page_group_id)
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -846,6 +893,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -858,6 +906,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/assignments" % (self.server,profile_id,page_id)
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -870,6 +919,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/assignments/%s" % (self.server,profile_id,page_id,user_id)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -884,6 +934,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -917,6 +968,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/assignments/%s" % (self.server,profile_id,page_id,user_id)
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -931,6 +983,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -943,6 +996,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/assignments/%s" % (self.server,profile_id,page_id,user_id)
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -957,6 +1011,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -969,6 +1024,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/record_assignments" % (self.server,profile_id,page_id)
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -981,6 +1037,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/record_assignments/%s" % (self.server,profile_id,page_id,assignment_id)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -995,6 +1052,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1007,6 +1065,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/record_assignments/%s" % (self.server,profile_id,page_id,assignment_id)
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1021,6 +1080,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1033,6 +1093,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/record_assignments/%s" % (self.server,profile_id,page_id,assignment_id)
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1047,6 +1108,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1059,6 +1121,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/shared_page" % (self.server,profile_id,page_id)
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1073,6 +1136,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1085,6 +1149,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/dependencies" % (self.server,profile_id,page_id)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1097,6 +1162,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/shared_page" % (self.server,profile_id,page_id)
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1109,6 +1175,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/shared_page" % (self.server,profile_id,page_id)
             result = self.session.delete(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1121,6 +1188,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/dynamic_attributes" % (self.server,profile_id,page_id)
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1133,6 +1201,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/dynamic_attributes/%s" % (self.server,profile_id,page_id,attribute_name)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1147,6 +1216,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1159,6 +1229,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/dynamic_attributes/%s" % (self.server,profile_id,page_id,attribute_name)
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1173,6 +1244,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1185,6 +1257,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/dynamic_attributes/%s" % (self.server,profile_id,page_id,attribute_name)
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1199,6 +1272,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1223,6 +1297,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/localizations/%s" % (self.server,profile_id,page_id,language_code)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1237,6 +1312,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1249,6 +1325,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/localizations/%s" % (self.server,profile_id,page_id,language_code)
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1263,6 +1340,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1275,6 +1353,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/localizations/%s" % (self.server,profile_id,page_id,language_code)
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1289,6 +1368,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1301,6 +1381,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/http_callbacks" % (self.server,profile_id,page_id)
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1313,6 +1394,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/http_callbacks/%s" % (self.server,profile_id,page_id,endpoint_id)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1326,6 +1408,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1338,6 +1421,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/http_callbacks/%s" % (self.server,profile_id,page_id,endpoint_id)
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1351,6 +1435,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1363,6 +1448,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/http_callbacks/%s" % (self.server,profile_id,page_id,endpoint_id)
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1376,6 +1462,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1389,6 +1476,7 @@ class IFB():
             body = [{"email": emails[i]} for i in range(len(emails))]
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/email_alerts" % (self.server,profile_id,page_id)
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1403,6 +1491,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1417,6 +1506,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1429,6 +1519,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/trigger_posts" % (self.server,profile_id,page_id)
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1442,6 +1533,7 @@ class IFB():
             deep = 1 if deep == True else 0
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/feed?offset=%s&limit=%s&deep=%s" % (self.server,profile_id,page_id,offset,limit,deep)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1458,6 +1550,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements" % (self.server,profile_id,page_id)
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1470,6 +1563,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s" % (self.server,profile_id,page_id,element_id)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1484,6 +1578,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1517,6 +1612,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s" % (self.server,profile_id,page_id,element_id)
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1531,6 +1627,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1543,6 +1640,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s" % (self.server,profile_id,page_id,element_id)
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1557,6 +1655,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1569,6 +1668,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/dynamic_attributes" % (self.server,profile_id,page_id,element_id)
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1581,6 +1681,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/dynamic_attributes/%s" % (self.server,profile_id,page_id,element_id,attribute_name)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1595,6 +1696,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1607,6 +1709,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/dynamic_attributes/%s" % (self.server,profile_id,page_id,element_id,attribute_name)
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1621,6 +1724,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1633,6 +1737,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/dynamic_attributes/%s" % (self.server,profile_id,page_id,element_id,attribute_name)
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1647,6 +1752,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1659,6 +1765,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/localizations" % (self.server,profile_id,page_id,element_id)
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1671,6 +1778,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/localizations/%s" % (self.server,profile_id,page_id,element_id,language_code)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1685,6 +1793,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1697,6 +1806,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/localizations/%s" % (self.server,profile_id,page_id,element_id,language_code)
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1711,6 +1821,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1723,6 +1834,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/localizations/%s" % (self.server,profile_id,page_id,element_id,language_code)
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1737,6 +1849,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1753,6 +1866,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists" % (self.server,profile_id)
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1765,6 +1879,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s" % (self.server,profile_id,option_list_id)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1779,6 +1894,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1812,6 +1928,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s" % (self.server,profile_id,option_list_id)
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1826,6 +1943,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1838,6 +1956,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s" % (self.server,profile_id,option_list_id)
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1852,6 +1971,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1864,6 +1984,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/dependencies" % (self.server,profile_id,option_list_id)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1880,6 +2001,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options" % (self.server,profile_id,option_list_id)
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1892,6 +2014,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s" % (self.server,profile_id,option_list_id,option_id)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1906,6 +2029,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1939,6 +2063,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s" % (self.server,profile_id,option_list_id,option_id)
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1953,6 +2078,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1965,6 +2091,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s" % (self.server,profile_id,option_list_id,option_id)
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1979,6 +2106,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -1991,6 +2119,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s/localizations" % (self.server,profile_id,option_list_id,option_id)
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2003,6 +2132,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s/localizations/%s" % (self.server,profile_id,option_list_id,option_id,language_code)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2017,6 +2147,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2029,6 +2160,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s/localizations/%s" % (self.server,profile_id,option_list_id,option_id,language_code)
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2043,6 +2175,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2055,6 +2188,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s/localizations/%s" % (self.server,profile_id,option_list_id,option_id,language_code)
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2069,6 +2203,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2085,6 +2220,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records" % (self.server,profile_id,page_id)
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2097,6 +2233,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records/%s" % (self.server,profile_id,page_id,record_id)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2111,6 +2248,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2144,6 +2282,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records/%s" % (self.server,profile_id,page_id,record_id)
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2158,6 +2297,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.put(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2166,10 +2306,32 @@ class IFB():
             return result.json()
 
     @Decorators.refreshToken
+    def updateAllRecords(self,profile_id,page_id,body,grammar=None):
+        offset = 0
+        limit = 1000
+        records = []
+
+        while True:
+            try:
+                request = self.updateRecords(profile_id,page_id,body,grammar,offset,limit)
+                if len(request) == 0:
+                    break
+                else:
+                    records += request
+                    offset += limit
+                    print("%s records updated..." % len(records))
+            except Exception as e:
+                print(e)
+                return
+
+        return records
+
+    @Decorators.refreshToken
     def deleteRecord(self,profile_id,page_id,record_id):
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records/%s" % (self.server,profile_id,page_id,record_id)
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2184,6 +2346,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2216,6 +2379,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records/%s/assignments" % (self.server,profile_id,page_id,record_id)
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2228,6 +2392,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records/%s/assignments/%s" % (self.server,profile_id,page_id,record_id,user_id)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2242,6 +2407,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2254,6 +2420,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records/%s/assignments/%s" % (self.server,profile_id,page_id,record_id,user_id)
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2268,6 +2435,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.delete(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2285,6 +2453,7 @@ class IFB():
             body = {"message": message, "users": users}
             request = "https://%s/exzact/api/v60/profiles/%s/notifications" % (self.server,profile_id)
             result = self.session.post(request,data=json.dumps(body))
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2301,6 +2470,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/media?URL=%s" % (self.server,profile_id,media_url)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2317,6 +2487,7 @@ class IFB():
         try:
             request = "https://%s/exzact/api/v60/profiles/%s/licenses/%s" % (self.server,profile_id,license_id)
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
@@ -2331,6 +2502,7 @@ class IFB():
             if grammar != None:
                 request += "&fields=%s" % grammar
             result = self.session.get(request)
+            self.api_calls += 1
             result.raise_for_status()
         except Exception as e:
             print(e)
