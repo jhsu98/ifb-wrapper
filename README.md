@@ -307,6 +307,7 @@ This library is a work in progress and any help is appreciated. There are severa
 | GET | Device Licenses | readDeviceLicenses |
 
 ## Change Log
+- 1.5.3: Added logging `app.log`, access token check before refresh, and execution time `IFB.getExecutionTime()`
 - 1.5.2: Added api_calls property to IFB Class for counting API calls in a script
 - 1.5.1: Added readPageDependencies()
 - 1.5.0: Access token will refresh if there are less than 5 minutes remaining on the current access token

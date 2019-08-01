@@ -1,6 +1,8 @@
 # __init__.py
-__version__ = "1.5.2"
+__version__ = "1.5.3"
 
+import logging
+logging.basicConfig(filename='app.log', level=logging.DEBUG, format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
 import time
 import csv
 import json
@@ -10,15 +12,17 @@ import string
 from secrets import choice
 from collections import OrderedDict
 import random
+import math
 
 class IFB():
     class Decorators():
         @staticmethod
         def refreshToken(decorated):
             def wrapper(api,*args,**kwargs):
-                if time.time() - api.access_token_expiration > 0:
-                    api.requestAccessToken()
-                return decorated(api,*args,**kwargs)
+                if api.access_token is not None:
+                    if time.time() - api.access_token_expiration > 0:
+                        api.requestAccessToken()
+                    return decorated(api,*args,**kwargs)
 
             return wrapper
 
@@ -30,6 +34,7 @@ class IFB():
         self.api_calls = 0
         self.access_token = None
         self.access_token_expiration = None
+        self.__start_time = time.time()
         self.session = requests.Session()
         self.session.headers.update({ 'Content-Type': 'application/json' })
 
@@ -38,6 +43,9 @@ class IFB():
         except Exception as e:
             print(e)
             return
+
+    def getExecutionTime(self):
+        return math.ceil(time.time() - self.__start_time)
 
     ####################################
     ## MISC RESOURCES
