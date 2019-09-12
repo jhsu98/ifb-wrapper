@@ -308,6 +308,7 @@ This library is a work in progress and any help is appreciated. There are severa
 | GET | * | readAllDeviceLicenses |
 
 ## Change Log
+- 1.5.5: Reverted updateAllRecords and fixed bug in readAllDeviceLicenses
 - 1.5.4: Separated misc. functions to new utilities path. Fixed bug in updateAllRecords. Added readAllDeviceLicenses function. Added preliminary regression tests.
 - 1.5.3: Added logging `app.log`, access token check before refresh, and execution time `IFB.getExecutionTime()`
 - 1.5.2: Added api_calls property to IFB Class for counting API calls in a script
