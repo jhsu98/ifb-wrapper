@@ -1,5 +1,5 @@
 # __init__.py
-__version__ = "1.5.4"
+__version__ = "1.5.5"
 
 import logging
 logging.basicConfig(filename='app.log', level=logging.DEBUG, format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
@@ -958,10 +958,7 @@ class IFB():
             records += request
             offset += limit
             if len(request) < limit:
-                if offset == 0:
-                    break
-                else:
-                    offset = 0
+                break
 
         return records
 
@@ -1050,10 +1047,7 @@ class IFB():
             licenses += request
             offset += limit
             if len(request) < limit:
-                if offset == 0:
-                    break
-                else:
-                    offset = 0
+                break
 
         return licenses
 
