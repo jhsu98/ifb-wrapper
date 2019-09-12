@@ -104,3 +104,4 @@ venv.bak/
 .mypy_cache/
 
 debug.py
+/tests/fixtures.py
