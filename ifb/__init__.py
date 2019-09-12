@@ -1,5 +1,5 @@
 # __init__.py
-__version__ = "1.5.3"
+__version__ = "1.5.4"
 
 import logging
 logging.basicConfig(filename='app.log', level=logging.DEBUG, format='%(asctime)s - %(message)s', datefmt='%d-%b-%y %H:%M:%S')
@@ -8,11 +8,10 @@ import csv
 import json
 import jwt
 import requests
-import string
-from secrets import choice
 from collections import OrderedDict
-import random
 import math
+import urllib.parse
+from . import utilities
 
 class IFB():
     class Decorators():
@@ -26,11 +25,15 @@ class IFB():
 
             return wrapper
 
-    def __init__(self,server,client_id,client_secret):
+    def __init__(self,server=None,client_key=None,client_secret=None):
+        if not isinstance(server, str) or not isinstance(client_key, str) or not isinstance(client_key, str):
+            raise TypeError("Invalid API credentials")
+
         self.server = server
-        self.client_id = client_id
+        self.client_key = client_key
         self.client_secret = client_secret
 
+        self.home_profile = None
         self.api_calls = 0
         self.access_token = None
         self.access_token_expiration = None
@@ -40,6 +43,9 @@ class IFB():
 
         try:
             self.requestAccessToken()
+            self.host = f"https://{self.server}/exzact/api/v60/"
+            self.home_profile = self.readAccessToken()['user']['profile_id']
+
         except Exception as e:
             print(e)
             return
@@ -47,83 +53,87 @@ class IFB():
     def getExecutionTime(self):
         return math.ceil(time.time() - self.__start_time)
 
-    ####################################
-    ## MISC RESOURCES
-    ####################################
-    def genPassword(self,n=8):
-        if n < 8:
-            return False
-
-        uppercase = string.ascii_uppercase
-        numbers = string.digits
-        specials = "!@#$%^&"
-        pool = string.ascii_letters + numbers + specials
-
-        password = ''.join(choice(specials))
-        password += ''.join(choice(numbers))
-        password += ''.join(choice(uppercase))
-        password += ''.join(choice(pool) for i in range(n-3))
-
-        return ''.join(random.sample(password,len(password)))
+    @Decorators.refreshToken
+    def __get(self,resource):
+        try:
+            result = self.session.get(self.host+resource)
+            self.api_calls += 1
+            if result.status_code >= 300:
+                result.raise_for_status()
+        except Exception as e:
+            print(f"<{result.status_code}> {e}, {result.json()['error_message']}")
+        finally:
+            return result.json()
 
     @Decorators.refreshToken
-    def sortOptionList(self,profile_id,option_list_id,reverse=False):
-        options = self.readAllOptions(profile_id,option_list_id,"sort_order,key_value")
-        sorted_options = sorted(options, key=lambda k: k["key_value"],reverse=reverse)
-        
-        for i in range(len(sorted_options)):
-            sorted_options[i]['sort_order'] = i
-
-        self.updateOptions(profile_id,option_list_id,sorted_options)
-
-    @Decorators.refreshToken
-    def replaceRecords(self,profile_id,page_id,data):
-        # DELETE EXISTING RECORDS
-        print("Deleting all data...")
-        self.deleteAllRecords(profile_id,page_id)
-
-        # TRANSFORM DATA TO { "element_name": key, "value": value }
-        for i in range(len(data)):
-            obj = data[i]
-            arr = { "fields": [] }
-
-            for key in obj:
-                if obj[key] is not None:
-                    arr["fields"].append({ "element_name": key, "value": obj[key]})
-
-            data[i] = arr
-
-        # CREATE NEW RECORDS
-        i = 0
-        while i < len(data):
-            step = 1000
-            start = i
-            stop = i + step if i + step < len(data) else len(data)
-
-            section = data[start:stop]
-
-            print("Creating records %s to %s" % (str(start+1),str(stop)))
-            self.createRecords(profile_id,page_id,section)
-
-            i += step
+    def __post(self,resource,body):
+        try:
+            result = self.session.post(self.host+resource,data=body)
+            self.api_calls += 1
+            result.status_code = 999
+            if result.status_code >= 300:
+                result.raise_for_status()
+        except Exception as e:
+            print(f"<{result.status_code}> {e}, {result.json()['error_message']}")
+        finally:
+            return result.json()
 
     @Decorators.refreshToken
-    def deletePersonalData(self,profile_id,page_id):
-        # GET ELEMENTS WITH reference_id_1 == "PERSONAL_DATA"
-        elements = self.readAllElements(profile_id,page_id,"name,reference_id_5,data_type,data_size")
+    def __put(self,resource,body):
+        try:
+            result = self.session.put(self.host+resource,data=body)
+            self.api_calls += 1
+            if result.status_code >= 300:
+                result.raise_for_status()
+        except Exception as e:
+            print(f"<{result.status_code}> {e}, {result.json()['error_message']}")
+        finally:
+            return result.json()
+    
+    @Decorators.refreshToken
+    def __delete(self,resource):
+        try:
+            result = self.session.delete(self.host+resource)
+            self.api_calls += 1
+            if result.status_code >= 300:
+                result.raise_for_status()
+        except Exception as e:
+            print(f"<{result.status_code}> {e}, {result.json()['error_message']}")
+        finally:
+            return result.json()
 
-        body = {"fields": []}
+    def __buildOffsetLimitGrammar(self,resource,offset,limit,grammar):
+        if grammar is not None or offset is not None or limit is not None:
+            resource += "?"
+            fields = []
+            if grammar is not None:
+                fields.append(f"fields={urllib.parse.quote(grammar)}")
+            if offset is not None:
+                fields.append(f"offset={offset}")
+            if limit is not None:
+                fields.append(f"limit={limit}")
+            return resource + "&".join(fields)
+        else:
+            return resource
 
-        for i in range(len(elements)):
-            if elements[i]['reference_id_5'] == "PERSONAL_DATA":
-                body['fields'].append({"element_name": elements[i]['name'], "value": ""})
-            elif elements[i]['data_type'] == 18:
-                self.deletePersonalData(profile_id,elements[i]['data_size'])
-            else:
-                pass
+    def __formatFieldsElementNameValue(self,r):
+        if isinstance(r,dict):
+            record = {}
+            
+            if 'parent_page_id' in r and r['parent_page_id'] > 0:
+                record['parent_page_id'] = r['parent_page_id']
+                r.pop('parent_page_id')
+            if 'parent_element_id' in r and r['parent_element_id'] > 0:
+                record['parent_element_id'] = r['parent_element_id']
+                r.pop('parent_element_id')
+            if 'parent_record_id' in r and r['parent_record_id'] > 0:
+                record['parent_record_id'] = r['parent_record_id']
+                r.pop('parent_record_id')
 
-        self.updateRecords(profile_id,page_id,body,'id(>"0")')
-        print("Page <%s> cleaned..." % page_id)
+            record['fields'] = [{"element_name": key, "value": r[key]} for key in r]
+            return record
+        else:
+            return r
 
     ####################################
     ## TOKEN RESOURCES
@@ -137,7 +147,7 @@ class IFB():
         try:
             token_endpoint = "https://%s/exzact/api/oauth/token" % self.server
             jwt_payload = {
-                'iss': self.client_id,
+                'iss': self.client_key,
                 'aud': token_endpoint,
                 'iat': time.time(),
                 'exp': time.time() + 300
@@ -159,2364 +169,893 @@ class IFB():
             self.session.headers.update({ 'Authorization': "Bearer %s" % self.access_token })
             self.access_token_expiration = time.time() + 3300
 
-    @Decorators.refreshToken
     def readAccessToken(self):
-        try:
-            request = "https://%s/exzact/api/v60/token" % (self.server)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "token"
+        return self.__get(request)
 
     ####################################
     ## PROFILE RESOURCES
     ####################################
 
-    @Decorators.refreshToken
+    def getHomeProfile(self):
+        request = "profiles/self"
+        return self.__get(request)
+
     def createProfile(self,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles" % self.server
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles"
+        return self.__post(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def readProfile(self,profile_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s" % (self.server,profile_id)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s" % (profile_id)
+        return self.__get(request)
 
-    @Decorators.refreshToken
-    def readProfiles(self,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles?offset=%s&limit=%s" % (self.server,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readProfiles(self,grammar=None,offset=None,limit=None):
+        request = "profiles"
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
 
-    @Decorators.refreshToken
     def readAllProfiles(self,grammar=None):
         offset = 0
         limit = 100
         profiles = []
 
         while True:
-            try:
-                request = self.readProfiles(grammar,offset,limit)
-                if len(request) == 0:
-                    break
-                else:
-                    profiles += request
-                    offset += limit
-                    print("%s profiles fetched..." % len(profiles))
-            except Exception as e:
-                print(e)
-                return
-        
+            request = self.readProfiles(grammar=grammar,offset=offset,limit=limit)
+            profiles += request
+            offset += limit
+            if len(request) < limit:
+                break
+            
         return profiles
 
-    @Decorators.refreshToken
     def updateProfile(self,profile_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s" % (self.server,profile_id)
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s" % (profile_id)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def readCompanyInfo(self,profile_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/company_info" % (self.server,profile_id)
-            get_company_info = self.session.get(request)
-            get_company_info.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return get_company_info.json()
+        request = "profiles/%s/company_info" % (profile_id)
+        return self.__get(request)
 
-    @Decorators.refreshToken
     def updateCompanyInfo(self,profile_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/company_info" % (self.server,profile_id)
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/company_info" % (profile_id)
+        return self.__put(request,json.dumps(body))
 
     ####################################
     ## USER RESOURCES
     ####################################
 
-    @Decorators.refreshToken
     def createUsers(self,profile_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/users" % (self.server,profile_id)
-            print(body)
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/users" % (profile_id)
+        return self.__post(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def readUser(self,profile_id,user_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/users/%s" % (self.server,profile_id,user_id)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/users/%s" % (profile_id,user_id)
+        return self.__get(request)
 
-    @Decorators.refreshToken
-    def readUsers(self,profile_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/users?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readUsers(self,profile_id,grammar=None,offset=None,limit=None):
+        request = f"profiles/{profile_id}/users"
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
 
-    @Decorators.refreshToken
     def readAllUsers(self,profile_id,grammar=None):
         offset = 0
         limit = 100
         users = []
 
         while True:
-            try:
-                request = self.readUsers(profile_id,grammar,offset,limit)
-                if len(request) == 0:
-                    break
-                else:
-                    users += request
-                    offset += limit
-                    print("%s users fetched..." % len(users))
-            except Exception as e:
-                print(e)
-                return
+            request = self.readUsers(profile_id,grammar=grammar,offset=offset,limit=limit)
+            users += request
+            offset += limit
+            if len(request) < limit:
+                break
 
         return users
 
-    @Decorators.refreshToken
     def updateUser(self,profile_id,user_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/users/%s" % (self.server,profile_id,user_id)
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/users/%s" % (profile_id,user_id)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
-    def updateUsers(self,profile_id,body,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/users?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def updateUsers(self,profile_id,body,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/users" % (profile_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def deleteUser(self,profile_id,user_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/users/%s" % (self.server,profile_id,user_id)
-            delete_user = self.session.delete(request)
-            delete_user.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return delete_user.json()
+        request = "profiles/%s/users/%s" % (profile_id,user_id)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
-    def deleteUsers(self,profile_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/users?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def deleteUsers(self,profile_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/users" % (profile_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
     def createUserGroup(self,profile_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/user_groups" % (self.server,profile_id)
-            print(body)
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/user_groups" % (profile_id)
+        return self.__post(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def readUserGroup(self,profile_id,user_group_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/user_groups/%s" % (self.server,profile_id,user_group_id)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/user_groups/%s" % (profile_id,user_group_id)
+        return self.__get(request)
 
-    @Decorators.refreshToken
-    def readUserGroups(self,profile_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/user_groups?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readUserGroups(self,profile_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/user_groups" % (profile_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
 
-    @Decorators.refreshToken
     def updateUserGroup(self,profile_id,user_group_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/user_groups/%s" % (self.server,profile_id,user_group_id)
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/user_groups/%s" % (profile_id,user_group_id)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
-    def updateUserGroups(self,profile_id,body,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/user_groups?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def updateUserGroups(self,profile_id,body,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/user_groups" % (profile_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def deleteUserGroup(self,profile_id,user_group_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/user_groups/%s" % (self.server,profile_id,user_group_id)
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/user_groups/%s" % (profile_id,user_group_id)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
-    def deleteUserGroups(self,profile_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/user_groups?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
-
-    @Decorators.refreshToken
+    def deleteUserGroups(self,profile_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/user_groups" % (profile_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__delete(request)
+        
     def createUserPageAssignments(self,profile_id,user_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/users/%s/page_assignments" % (self.server,profile_id,user_id)
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/users/%s/page_assignments" % (profile_id,user_id)
+        return self.__post(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def readUserPageAssignment(self,profile_id,user_id,page_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/users/%s/page_assignments/%s" % (self.server,profile_id,user_id,page_id)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/users/%s/page_assignments/%s" % (profile_id,user_id,page_id)
+        return self.__get(request)
+        
+    def readUserPageAssignments(self,profile_id,user_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/users/%s/page_assignments" % (profile_id,user_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
 
-    @Decorators.refreshToken
-    def readUserPageAssignments(self,profile_id,user_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/users/%s/page_assignments?offset=%s&limit=%s" % (self.server,profile_id,user_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
-
-    @Decorators.refreshToken
     def updateUserPageAssignment(self,profile_id,user_id,page_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/users/%s/page_assignments/%s" % (self.server,profile_id,user_id,page_id)
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/users/%s/page_assignments/%s" % (profile_id,user_id,page_id)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
-    def updateUserPageAssignments(self,profile_id,user_id,body,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/users/%s/page_assignments?offset=%s&limit=%s" % (self.server,profile_id,user_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def updateUserPageAssignments(self,profile_id,user_id,body,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/users/%s/page_assignments" % (profile_id,user_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def deleteUserPageAssignment(self,profile_id,user_id,page_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/users/%s/page_assignments/%s" % (self.server,profile_id,user_id,page_id)
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/users/%s/page_assignments/%s" % (profile_id,user_id,page_id)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
-    def deleteUserPageAssignments(self,profile_id,user_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/users/%s/page_assignments?offset=%s&limit=%s" % (self.server,profile_id,user_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def deleteUserPageAssignments(self,profile_id,user_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/users/%s/page_assignments?offset=%s&limit=%s" % (profile_id,user_id,offset,limit)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
     def createUserRecordAssignments(self,profile_id,user_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/users/%s/record_assignments" % (self.server,profile_id,user_id)
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/users/%s/record_assignments" % (profile_id,user_id)
+        return self.__post(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def readUserRecordAssignment(self,profile_id,user_id,assignment_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/users/%s/record_assignments/%s" % (self.server,profile_id,user_id,assignment_id)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/users/%s/record_assignments/%s" % (profile_id,user_id,assignment_id)
+        return self.__get(request)
 
-    @Decorators.refreshToken
-    def readUserRecordAssignments(self,profile_id,user_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/users/%s/record_assignments?offset=%s&limit=%s" % (self.server,profile_id,user_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readUserRecordAssignments(self,profile_id,user_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/users/%s/record_assignments" % (profile_id,user_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
 
-    @Decorators.refreshToken
     def updateUserRecordAssignment(self,profile_id,user_id,assignment_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/users/%s/record_assignments/%s" % (self.server,profile_id,user_id,assignment_id)
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/users/%s/record_assignments/%s" % (profile_id,user_id,assignment_id)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
-    def updateUserRecordAssignments(self,profile_id,user_id,body,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/users/%s/record_assignments?offset=%s&limit=%s" % (self.server,profile_id,user_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def updateUserRecordAssignments(self,profile_id,user_id,body,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/users/%s/record_assignments" % (profile_id,user_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def deleteUserRecordAssignment(self,profile_id,user_id,assignment_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/users/%s/record_assignments/%s" % (self.server,profile_id,user_id,assignment_id)
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/users/%s/record_assignments/%s" % (profile_id,user_id,assignment_id)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
-    def deleteUserRecordAssignments(self,profile_id,user_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/users/%s/record_assignments?offset=%s&limit=%s" % (self.server,profile_id,user_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def deleteUserRecordAssignments(self,profile_id,user_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/users/%s/record_assignments" % (profile_id,user_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__delete(request)
 
     ####################################
     ## PAGE RESOURCES
     ####################################
 
-    @Decorators.refreshToken
     def createPage(self,profile_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages" % (self.server,profile_id)
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages" % (profile_id)
+        return self.__post(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def readPage(self,profile_id,page_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s" % (self.server,profile_id,page_id)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s" % (profile_id,page_id)
+        return self.__get(request)
 
-    @Decorators.refreshToken
-    def readPages(self,profile_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readPages(self,profile_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages" % (profile_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
 
-    @Decorators.refreshToken
     def readAllPages(self,profile_id,grammar=None):
         offset = 0
         limit = 100
         pages = []
 
         while True:
-            try:
-                request = self.readPages(profile_id,grammar,offset,limit)
-                if len(request) == 0:
-                    break
-                else:
-                    pages += request
-                    offset += limit
-                    print("%s pages fetched..." % len(pages))
-            except Exception as e:
-                print(e)
-                return
+            request = self.readPages(profile_id,grammar=grammar,offset=offset,limit=limit)
+            pages += request
+            offset += limit
+            if len(request) < limit:
+                break
 
         return pages
 
-    @Decorators.refreshToken
     def updatePage(self,profile_id,page_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s" % (self.server,profile_id,page_id)
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s" % (profile_id,page_id)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
-    def updatePages(self,profile_id,body,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def updatePages(self,profile_id,body,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages" % (profile_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def deletePage(self,profile_id,page_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s" % (self.server,profile_id,page_id)
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s" % (profile_id,page_id)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
-    def deletePages(self,profile_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def deletePages(self,profile_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages" % (profile_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
     def createPageGroup(self,profile_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/page_groups" % (self.server,profile_id)
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/page_groups" % (profile_id)
+        return self.__post(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def readPageGroup(self,profile_id,page_group_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/page_groups/%s" % (self.server,profile_id,page_group_id)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/page_groups/%s" % (profile_id,page_group_id)
+        return self.__get(request)
 
-    @Decorators.refreshToken
-    def readPageGroups(self,profile_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/page_groups?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readPageGroups(self,profile_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/page_groups" % (profile_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
 
-    @Decorators.refreshToken
     def updatePageGroup(self,profile_id,page_group_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/page_groups/%s" % (self.server,profile_id,page_group_id)
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/page_groups/%s" % (profile_id,page_group_id)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
-    def updatePageGroups(self,profile_id,body,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/page_groups?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def updatePageGroups(self,profile_id,body,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/page_groups" % (profile_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def deletePageGroup(self,profile_id,page_group_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/page_groups/%s" % (self.server,profile_id,page_group_id)
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/page_groups/%s" % (profile_id,page_group_id)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
-    def deletePageGroups(self,profile_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/page_groups?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def deletePageGroups(self,profile_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/page_groups" % (profile_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
     def createPageAssignments(self,profile_id,page_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/assignments" % (self.server,profile_id,page_id)
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/assignments" % (profile_id,page_id)
+        return self.__post(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def readPageAssignment(self,profile_id,page_id,user_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/assignments/%s" % (self.server,profile_id,page_id,user_id)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/assignments/%s" % (profile_id,page_id,user_id)
+        return self.__get(request)
 
-    @Decorators.refreshToken
-    def readPageAssignments(self,profile_id,page_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/assignments?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readPageAssignments(self,profile_id,page_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/assignments" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
 
-    @Decorators.refreshToken
     def readAllPageAssignments(self,profile_id,page_id,grammar=None):
         offset = 0
         limit = 100
         page_assignments = []
 
         while True:
-            try:
-                request = self.readPageAssignments(profile_id,page_id,grammar,offset,limit)
-                if len(request) == 0:
-                    break
-                else:
-                    page_assignments += request
-                    offset += limit
-                    print("%s page assignments fetched..." % len(page_assignments))
-            except Exception as e:
-                print(e)
-                return
+            request = self.readPageAssignments(profile_id,page_id,grammar=grammar,offset=offset,limit=limit)
+            page_assignments += request
+            offset += limit
+            if len(request) < limit:
+                break
 
         return page_assignments
 
-    @Decorators.refreshToken
     def updatePageAssignment(self,profile_id,page_id,user_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/assignments/%s" % (self.server,profile_id,page_id,user_id)
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/assignments/%s" % (profile_id,page_id,user_id)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
-    def updatePageAssignments(self,profile_id,page_id,body,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/assignments?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def updatePageAssignments(self,profile_id,page_id,body,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/assignments" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def deletePageAssignment(self,profile_id,page_id,user_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/assignments/%s" % (self.server,profile_id,page_id,user_id)
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/assignments/%s" % (profile_id,page_id,user_id)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
-    def deletePageAssignments(self,profile_id,page_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/assignments?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def deletePageAssignments(self,profile_id,page_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/assignments" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
     def createPageRecordAssignments(self,profile_id,page_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/record_assignments" % (self.server,profile_id,page_id)
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/record_assignments" % (profile_id,page_id)
+        return self.__post(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def readPageRecordAssignment(self,profile_id,page_id,assignment_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/record_assignments/%s" % (self.server,profile_id,page_id,assignment_id)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/record_assignments/%s" % (profile_id,page_id,assignment_id)
+        return self.__get(request)
 
-    @Decorators.refreshToken
-    def readPageRecordAssignments(self,profile_id,page_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/record_assignments?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readPageRecordAssignments(self,profile_id,page_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/record_assignments" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
 
-    @Decorators.refreshToken
     def updatePageRecordAssignment(self,profile_id,page_id,assignment_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/record_assignments/%s" % (self.server,profile_id,page_id,assignment_id)
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/record_assignments/%s" % (profile_id,page_id,assignment_id)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
-    def updatePageRecordAssignments(self,profile_id,page_id,body,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/record_assignments?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def updatePageRecordAssignments(self,profile_id,page_id,body,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/record_assignments" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def deletePageRecordAssignment(self,profile_id,page_id,assignment_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/record_assignments/%s" % (self.server,profile_id,page_id,assignment_id)
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/record_assignments/%s" % (profile_id,page_id,assignment_id)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
-    def deletePageRecordAssignments(self,profile_id,page_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/record_assignments?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def deletePageRecordAssignments(self,profile_id,page_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/record_assignments" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
     def createPageShares(self,profile_id,page_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/shared_page" % (self.server,profile_id,page_id)
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/shared_page" % (profile_id,page_id)
+        return self.__post(request,json.dumps(body))
 
-    @Decorators.refreshToken
-    def readPageShares(self,profile_id,page_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/shared_page?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readPageShares(self,profile_id,page_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/shared_page" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
 
-    @Decorators.refreshToken
     def readPageDependencies(self,profile_id,page_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/dependencies" % (self.server,profile_id,page_id)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/dependencies" % (profile_id,page_id)
+        return self.__get(request)
 
-    @Decorators.refreshToken
     def updatePageShares(self,profile_id,page_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/shared_page" % (self.server,profile_id,page_id)
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/shared_page" % (profile_id,page_id)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
-    def deletePageShares(self,profile_id,page_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/shared_page" % (self.server,profile_id,page_id)
-            result = self.session.delete(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def deletePageShares(self,profile_id,page_id,grammar=None,offset=None,limit=None):
+    # need to revisit and include way to delete via body with list of ids
+        request = "profiles/%s/pages/%s/shared_page" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
     def createPageDynamicAttributes(self,profile_id,page_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/dynamic_attributes" % (self.server,profile_id,page_id)
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/dynamic_attributes" % (profile_id,page_id)
+        return self.__post(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def readPageDynamicAttribute(self,profile_id,page_id,attribute_name):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/dynamic_attributes/%s" % (self.server,profile_id,page_id,attribute_name)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/dynamic_attributes/%s" % (profile_id,page_id,attribute_name)
+        return self.__get(request)
 
-    @Decorators.refreshToken
-    def readPageDynamicAttributes(self,profile_id,page_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/dynamic_attributes?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readPageDynamicAttributes(self,profile_id,page_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/dynamic_attributes" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
 
-    @Decorators.refreshToken
     def updatePageDynamicAttribute(self,profile_id,page_id,attribute_name,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/dynamic_attributes/%s" % (self.server,profile_id,page_id,attribute_name)
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/dynamic_attributes/%s" % (profile_id,page_id,attribute_name)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
-    def updatePageDynamicAttributes(self,profile_id,page_id,body,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/dynamic_attributes?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def updatePageDynamicAttributes(self,profile_id,page_id,body,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/dynamic_attributes" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def deletePageDynamicAttribute(self,profile_id,page_id,attribute_name):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/dynamic_attributes/%s" % (self.server,profile_id,page_id,attribute_name)
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/dynamic_attributes/%s" % (profile_id,page_id,attribute_name)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
     def deletePageDynamicAttributes(self,profile_id,page_id,grammar=None,offset=0,limit=0):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/dynamic_attributes?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/dynamic_attributes" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
     def createPageLocalizations(self,profile_id,page_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/localizations" % (self.server,profile_id,page_id)
-            post_page_localizations = self.session.post(request,data=json.dumps(body))
-            post_page_localizations.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return post_page_localizations.json()
+        request = "profiles/%s/pages/%s/localizations" % (profile_id,page_id)
+        return self.__post(request,body)
 
-    @Decorators.refreshToken
     def readPageLocalization(self,profile_id,page_id,language_code):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/localizations/%s" % (self.server,profile_id,page_id,language_code)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/localizations/%s" % (profile_id,page_id,language_code)
+        return self.__get(request)
 
-    @Decorators.refreshToken
-    def readPageLocalizations(self,profile_id,page_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/localizations?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readPageLocalizations(self,profile_id,page_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/localizations" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
 
-    @Decorators.refreshToken
     def updatePageLocalization(self,profile_id,page_id,language_code,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/localizations/%s" % (self.server,profile_id,page_id,language_code)
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/localizations/%s" % (profile_id,page_id,language_code)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
-    def updatePageLocalizations(self,profile_id,page_id,body,grammar=None,offset=0,limit=1000):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/localizations?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def updatePageLocalizations(self,profile_id,page_id,body,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/localizations" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def deletePageLocalization(self,profile_id,page_id,language_code):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/localizations/%s" % (self.server,profile_id,page_id,language_code)
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/localizations/%s" % (profile_id,page_id,language_code)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
-    def deletePageLocalizations(self,profile_id,page_id,grammar=None,offset=0,limit=1000):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/localizations?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def deletePageLocalizations(self,profile_id,page_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/localizations" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
     def createPageEndpoint(self,profile_id,page_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/http_callbacks" % (self.server,profile_id,page_id)
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/http_callbacks" % (profile_id,page_id)
+        return self.__post(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def readPageEndpoint(self,profile_id,page_id,endpoint_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/http_callbacks/%s" % (self.server,profile_id,page_id,endpoint_id)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/http_callbacks/%s" % (profile_id,page_id,endpoint_id)
+        return self.__get(request)
     
-    def readPageEndpoints(self,profile_id,page_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/http_callbacks?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readPageEndpoints(self,profile_id,page_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/http_callbacks" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
 
-    @Decorators.refreshToken
     def updatePageEndpoint(self,profile_id,page_id,endpoint_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/http_callbacks/%s" % (self.server,profile_id,page_id,endpoint_id)
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/http_callbacks/%s" % (profile_id,page_id,endpoint_id)
+        return self.__put(request,json.dumps(body))
     
-    def updatePageEndpoints(self,profile_id,page_id,body,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/http_callbacks?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def updatePageEndpoints(self,profile_id,page_id,body,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/http_callbacks" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def deletePageEndpoint(self,profile_id,page_id,endpoint_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/http_callbacks/%s" % (self.server,profile_id,page_id,endpoint_id)
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/http_callbacks/%s" % (profile_id,page_id,endpoint_id)
+        return self.__delete(request)
     
-    def deletePageEndpoints(self,profile_id,page_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/http_callbacks?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def deletePageEndpoints(self,profile_id,page_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/http_callbacks" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
     def createPageEmailAlerts(self,profile_id,page_id,emails):
-        try:
-            body = [{"email": emails[i]} for i in range(len(emails))]
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/email_alerts" % (self.server,profile_id,page_id)
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        body = [{"email": emails[i]} for i in range(len(emails))]
+        request = "profiles/%s/pages/%s/email_alerts" % (profile_id,page_id)
+        return self.__post(request,json.dumps(body))
 
-    @Decorators.refreshToken
-    def readPageEmailAlerts(self,profile_id,page_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/email_alerts?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readPageEmailAlerts(self,profile_id,page_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/email_alerts" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
 
-    @Decorators.refreshToken
-    def deletePageEmailAlerts(self,profile_id,page_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/email_alerts?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def deletePageEmailAlerts(self,profile_id,page_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/email_alerts" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
     def createPageTriggerPost(self,profile_id,page_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/trigger_posts" % (self.server,profile_id,page_id)
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/trigger_posts" % (profile_id,page_id)
+        return self.__post(request,json.dumps(body))
 
-    @Decorators.refreshToken
-    def readPageFeed(self,profile_id,page_id,grammar=None,offset=0,limit=100,deep=False):
-        try:
-            deep = 1 if deep == True else 0
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/feed?offset=%s&limit=%s&deep=%s" % (self.server,profile_id,page_id,offset,limit,deep)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readPageFeed(self,profile_id,page_id,grammar=None,offset=None,limit=None,deep=False):
+        deep = 1 if deep == True else 0
+        request = "profiles/%s/pages/%s/feed" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        request += f"?deep={deep}" if "?" not in request else f"&deep={deep}"
+        return self.__get(request)
 
     ####################################
     ## ELEMENT RESOURCES
     ####################################
 
-    @Decorators.refreshToken
     def createElements(self,profile_id,page_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements" % (self.server,profile_id,page_id)
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/elements" % (profile_id,page_id)
+        return self.__post(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def readElement(self,profile_id,page_id,element_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s" % (self.server,profile_id,page_id,element_id)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/elements/%s" % (profile_id,page_id,element_id)
+        return self.__get(request)
 
-    @Decorators.refreshToken
-    def readElements(self,profile_id,page_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readElements(self,profile_id,page_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/elements" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
 
-    @Decorators.refreshToken
     def readAllElements(self,profile_id,page_id,grammar=None):
         offset = 0
         limit = 100
         elements = []
         
         while True:
-            try:
-                request = self.readElements(profile_id,page_id,grammar,offset,limit)
-                if len(request) == 0:
-                    break
-                else:
-                    elements += request
-                    offset += limit
-                    print("%s elements fetched..." % len(elements))
-            except Exception as e:
-                print(e)
-                return
+            request = self.readElements(profile_id,page_id,grammar=grammar,offset=offset,limit=limit)
+            elements += request
+            offset += limit
+            if len(request) < limit:
+                break
 
         return elements
 
-    @Decorators.refreshToken
     def updateElement(self,profile_id,page_id,element_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s" % (self.server,profile_id,page_id,element_id)
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/elements/%s" % (profile_id,page_id,element_id)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
-    def updateElements(self,profile_id,page_id,body,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def updateElements(self,profile_id,page_id,body,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/elements" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def deleteElement(self,profile_id,page_id,element_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s" % (self.server,profile_id,page_id,element_id)
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/elements/%s" % (profile_id,page_id,element_id)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
     def deleteElements(self,profile_id,page_id,grammar=None,offset=0,limit=0):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/elements" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
     def createElementDynamicAttributes(self,profile_id,page_id,element_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/dynamic_attributes" % (self.server,profile_id,page_id,element_id)
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/elements/%s/dynamic_attributes" % (profile_id,page_id,element_id)
+        return self.__post(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def readElementDynamicAttribute(self,profile_id,page_id,element_id,attribute_name):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/dynamic_attributes/%s" % (self.server,profile_id,page_id,element_id,attribute_name)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/elements/%s/dynamic_attributes/%s" % (profile_id,page_id,element_id,attribute_name)
+        return self.__get(request)
 
-    @Decorators.refreshToken
-    def readElementDynamicAttributes(self,profile_id,page_id,element_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/dynamic_attributes?offset=%s&limit=%s" % (self.server,profile_id,page_id,element_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readElementDynamicAttributes(self,profile_id,page_id,element_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/elements/%s/dynamic_attributes" % (profile_id,page_id,element_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
 
-    @Decorators.refreshToken
     def updateElementDynamicAttribute(self,profile_id,page_id,element_id,attribute_name,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/dynamic_attributes/%s" % (self.server,profile_id,page_id,element_id,attribute_name)
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/elements/%s/dynamic_attributes/%s" % (profile_id,page_id,element_id,attribute_name)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
-    def updateElementDynamicAttributes(self,profile_id,page_id,element_id,body,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/dynamic_attributes?offset=%s&limit=%s" % (self.server,profile_id,page_id,element_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def updateElementDynamicAttributes(self,profile_id,page_id,element_id,body,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/elements/%s/dynamic_attributes" % (profile_id,page_id,element_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def deleteElementDynamicAttribute(self,profile_id,page_id,element_id,attribute_name):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/dynamic_attributes/%s" % (self.server,profile_id,page_id,element_id,attribute_name)
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/elements/%s/dynamic_attributes/%s" % (profile_id,page_id,element_id,attribute_name)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
     def deleteElementDynamicAttributes(self,profile_id,page_id,element_id,grammar=None,offset=0,limit=0):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/dynamic_attributes?offset=%s&limit=%s" % (self.server,profile_id,page_id,element_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/elements/%s/dynamic_attributes" % (profile_id,page_id,element_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
     def createElementLocalizations(self,profile_id,page_id,element_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/localizations" % (self.server,profile_id,page_id,element_id)
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/elements/%s/localizations" % (profile_id,page_id,element_id)
+        return self.__post(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def readElementLocalization(self,profile_id,page_id,element_id,language_code):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/localizations/%s" % (self.server,profile_id,page_id,element_id,language_code)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/elements/%s/localizations/%s" % (profile_id,page_id,element_id,language_code)
+        return self.__get(request)
 
-    @Decorators.refreshToken
-    def readElementLocalizations(self,profile_id,page_id,element_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/localizations?offset=%s&limit=%s" % (self.server,profile_id,page_id,element_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readElementLocalizations(self,profile_id,page_id,element_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/elements/%s/localizations" % (profile_id,page_id,element_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
 
-    @Decorators.refreshToken
     def updateElementLocalization(self,profile_id,page_id,element_id,language_code,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/localizations/%s" % (self.server,profile_id,page_id,element_id,language_code)
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/elements/%s/localizations/%s" % (profile_id,page_id,element_id,language_code)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
-    def updateElementLocalizations(self,profile_id,page_id,element_id,body,grammar=None,offset=0,limit=1000):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/localizations?offset=%s&limit=%s" % (self.server,profile_id,page_id,element_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def updateElementLocalizations(self,profile_id,page_id,element_id,body,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/elements/%s/localizations" % (profile_id,page_id,element_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def deleteElementLocalization(self,profile_id,page_id,element_id,language_code):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/localizations/%s" % (self.server,profile_id,page_id,element_id,language_code)
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/elements/%s/localizations/%s" % (profile_id,page_id,element_id,language_code)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
-    def deleteElementLocalizations(self,profile_id,page_id,element_id,grammar=None,offset=0,limit=1000):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/elements/%s/localizations?offset=%s&limit=%s" % (self.server,profile_id,page_id,element_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def deleteElementLocalizations(self,profile_id,page_id,element_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/elements/%s/localizations" % (profile_id,page_id,element_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__delete(request)
 
     ####################################
     ## OPTION LIST RESOURCES
     ####################################
 
-    @Decorators.refreshToken
     def createOptionList(self,profile_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/optionlists" % (self.server,profile_id)
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/optionlists" % (profile_id)
+        return self.__post(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def readOptionList(self,profile_id,option_list_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s" % (self.server,profile_id,option_list_id)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/optionlists/%s" % (profile_id,option_list_id)
+        return self.__get(request)
 
-    @Decorators.refreshToken
-    def readOptionLists(self,profile_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/optionlists?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readOptionLists(self,profile_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/optionlists" % (profile_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
 
-    @Decorators.refreshToken
     def readAllOptionLists(self,profile_id,grammar=None):
         offset = 0
         limit = 100
         option_lists = []
 
         while True:
-            try:
-                request = self.readOptionLists(profile_id,grammar,offset,limit)
-                if len(request) == 0:
-                    break
-                else:
-                    option_lists += request
-                    offset += limit
-                    print("%s option lists fetched..." % len(option_lists))
-            except Exception as e:
-                print(e)
-                return
+            request = self.readOptionLists(profile_id,grammar=grammar,offset=offset,limit=limit)
+            option_lists += request
+            offset += limit
+            if len(request) < limit:
+                break
         
         return option_lists
 
-    @Decorators.refreshToken
     def updateOptionList(self,profile_id,option_list_id,element_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s" % (self.server,profile_id,option_list_id)
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/optionlists/%s" % (profile_id,option_list_id)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
-    def updateOptionLists(self,profile_id,body,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/optionlists?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def updateOptionLists(self,profile_id,body,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/optionlists" % (profile_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def deleteOptionList(self,profile_id,option_list_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s" % (self.server,profile_id,option_list_id)
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/optionlists/%s" % (profile_id,option_list_id)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
-    def deleteOptionLists(self,profile_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/optionlists?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def deleteOptionLists(self,profile_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/optionlists" % (profile_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
     def readOptionListDependencies(self,profile_id,option_list_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/dependencies" % (self.server,profile_id,option_list_id)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/optionlists/%s/dependencies" % (profile_id,option_list_id)
+        return self.__get(request)
 
     ####################################
     ## OPTION RESOURCES
     ####################################
 
-    @Decorators.refreshToken
     def createOptions(self,profile_id,option_list_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options" % (self.server,profile_id,option_list_id)
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/optionlists/%s/options" % (profile_id,option_list_id)
+        return self.__post(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def readOption(self,profile_id,option_list_id,option_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s" % (self.server,profile_id,option_list_id,option_id)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/optionlists/%s/options/%s" % (profile_id,option_list_id,option_id)
+        return self.__get(request)
 
-    @Decorators.refreshToken
-    def readOptions(self,profile_id,option_list_id,grammar=None,offset=0,limit=1000):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options?offset=%s&limit=%s" % (self.server,profile_id,option_list_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readOptions(self,profile_id,option_list_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/optionlists/%s/options" % (profile_id,option_list_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
 
-    @Decorators.refreshToken
     def readAllOptions(self,profile_id,option_list_id,grammar=None):
         offset = 0
         limit = 1000
         options = []
 
         while True:
-            try:
-                request = self.readOptions(profile_id,option_list_id,grammar,offset,limit)
-                if len(request) == 0:
-                    break
-                else:
-                    options += request
-                    offset += limit
-                    print("%s options fetched..." % len(options))
-            except Exception as e:
-                print(e)
-                return
+            request = self.readOptions(profile_id,option_list_id,grammar=grammar,offset=offset,limit=limit)
+            options += request
+            offset += limit
+            if len(request) < limit:
+                break
         
         return options
 
-    @Decorators.refreshToken
     def updateOption(self,profile_id,option_list_id,option_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s" % (self.server,profile_id,option_list_id,option_id)
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/optionlists/%s/options/%s" % (profile_id,option_list_id,option_id)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
-    def updateOptions(self,profile_id,option_list_id,body,grammar=None,offset=0,limit=1000):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options?offset=%s&limit=%s" % (self.server,profile_id,option_list_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def updateOptions(self,profile_id,option_list_id,body,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/optionlists/%s/options" % (profile_id,option_list_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def deleteOption(self,profile_id,option_list_id,option_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s" % (self.server,profile_id,option_list_id,option_id)
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/optionlists/%s/options/%s" % (profile_id,option_list_id,option_id)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
-    def deleteOptions(self,profile_id,option_list_id,grammar=None,offset=0,limit=1000):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options?offset=%s&limit=%s" % (self.server,profile_id,option_list_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def deleteOptions(self,profile_id,option_list_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/optionlists/%s/options" % (profile_id,option_list_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
     def createOptionLocalizations(self,profile_id,option_list_id,option_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s/localizations" % (self.server,profile_id,option_list_id,option_id)
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/optionlists/%s/options/%s/localizations" % (profile_id,option_list_id,option_id)
+        return self.__post(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def readOptionLocalization(self,profile_id,option_list_id,option_id,language_code):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s/localizations/%s" % (self.server,profile_id,option_list_id,option_id,language_code)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/optionlists/%s/options/%s/localizations/%s" % (profile_id,option_list_id,option_id,language_code)
+        return self.__get(request)
 
-    @Decorators.refreshToken
-    def readOptionLocalizations(self,profile_id,option_list_id,option_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s/localizations?offset=%s&limit=%s" % (self.server,profile_id,option_list_id,option_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readOptionLocalizations(self,profile_id,option_list_id,option_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/optionlists/%s/options/%s/localizations" % (profile_id,option_list_id,option_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
 
-    @Decorators.refreshToken
     def updateOptionLocalization(self,profile_id,option_list_id,option_id,language_code,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s/localizations/%s" % (self.server,profile_id,option_list_id,option_id,language_code)
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/optionlists/%s/options/%s/localizations/%s" % (profile_id,option_list_id,option_id,language_code)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
-    def updateOptionLocalizations(self,profile_id,option_list_id,option_id,body,grammar=None,offset=0,limit=1000):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s/localizations?offset=%s&limit=%s" % (self.server,profile_id,option_list_id,option_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def updateOptionLocalizations(self,profile_id,option_list_id,option_id,body,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/optionlists/%s/options/%s/localizations" % (profile_id,option_list_id,option_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def deleteOptionLocalization(self,profile_id,option_list_id,option_id,language_code):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s/localizations/%s" % (self.server,profile_id,option_list_id,option_id,language_code)
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/optionlists/%s/options/%s/localizations/%s" % (profile_id,option_list_id,option_id,language_code)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
-    def deleteOptionLocalizations(self,profile_id,option_list_id,option_id,grammar=None,offset=0,limit=1000):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/optionlists/%s/options/%s/localizations?offset=%s&limit=%s" % (self.server,profile_id,option_list_id,option_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def deleteOptionLocalizations(self,profile_id,option_list_id,option_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/optionlists/%s/options/%s/localizations" % (profile_id,option_list_id,option_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__delete(request)
 
     ####################################
     ## RECORD RESOURCES
     ####################################
 
-    @Decorators.refreshToken
     def createRecords(self,profile_id,page_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records" % (self.server,profile_id,page_id)
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/records" % (profile_id,page_id)
+        if isinstance(body,dict):
+            body = [body]
+        if "fields" not in body[0]:
+            body = [self.__formatFieldsElementNameValue(record) for record in body]
+        return self.__post(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def readRecord(self,profile_id,page_id,record_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records/%s" % (self.server,profile_id,page_id,record_id)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/records/%s" % (profile_id,page_id,record_id)
+        return self.__get(request)
 
-    @Decorators.refreshToken
-    def readRecords(self,profile_id,page_id,grammar=None,offset=0,limit=1000):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readRecords(self,profile_id,page_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/records" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
 
-    @Decorators.refreshToken
     def readAllRecords(self,profile_id,page_id,grammar=None):
         offset = 0
         limit = 1000
         records = []
 
         while True:
-            try:
-                request = self.readRecords(profile_id,page_id,grammar,offset,limit)
-                if len(request) == 0:
-                    break
-                else:
-                    records += request
-                    offset += limit
-                    print("%s records fetched..." % len(records))
-            except Exception as e:
-                print(e)
-                return
+            request = self.readRecords(profile_id,page_id,grammar=grammar,offset=offset,limit=limit)
+            records += request
+            offset += limit
+            if len(request) < limit:
+                break
 
         return records
 
-    @Decorators.refreshToken
     def updateRecord(self,profile_id,page_id,record_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records/%s" % (self.server,profile_id,page_id,record_id)
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/records/%s" % (profile_id,page_id,record_id)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
-    def updateRecords(self,profile_id,page_id,body,grammar=None,offset=0,limit=1000):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.put(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def updateRecords(self,profile_id,page_id,body,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/records" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__put(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def updateAllRecords(self,profile_id,page_id,body,grammar=None):
         offset = 0
         limit = 1000
         records = []
 
         while True:
-            try:
-                request = self.updateRecords(profile_id,page_id,body,grammar,offset,limit)
-                if len(request) == 0:
+            request = self.updateRecords(profile_id,page_id,body,grammar=grammar,offset=0,limit=limit)
+            records += request
+            offset += limit
+            if len(request) < limit:
+                if offset == 0:
                     break
                 else:
-                    records += request
-                    offset += limit
-                    print("%s records updated..." % len(records))
-            except Exception as e:
-                print(e)
-                return
+                    offset = 0
 
         return records
 
-    @Decorators.refreshToken
     def deleteRecord(self,profile_id,page_id,record_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records/%s" % (self.server,profile_id,page_id,record_id)
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/records/%s" % (profile_id,page_id,record_id)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
-    def deleteRecords(self,profile_id,page_id,grammar=None,offset=0,limit=1000):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records?offset=%s&limit=%s" % (self.server,profile_id,page_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def deleteRecords(self,profile_id,page_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/records" % (profile_id,page_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
     def deleteAllRecords(self,profile_id,page_id,grammar="id(>\"0\")"):
         offset = 0
         limit = 1000
-        total = 0
+        records = []
 
         while True:
-            try:
-                request = self.deleteRecords(profile_id,page_id,grammar,offset,limit)
-                if len(request) == 0:
-                    break
-                else:
-                    total += len(request)
-                    print("Deleted %s records, %s total..." % (len(request),total))
-            except Exception as e:
-                print(e)
-                return False
+            request = self.deleteRecords(profile_id,page_id,grammar,offset,limit)
+            records += request
+            offset += limit
+            if len(request) < limit:
+                break
 
-        return True
+        return records
 
-    @Decorators.refreshToken
     def createRecordAssignments(self,profile_id,page_id,record_id,body):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records/%s/assignments" % (self.server,profile_id,page_id,record_id)
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/records/%s/assignments" % (profile_id,page_id,record_id)
+        return self.__post(request,json.dumps(body))
 
-    @Decorators.refreshToken
     def readRecordAssignment(self,profile_id,page_id,record_id,user_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records/%s/assignments/%s" % (self.server,profile_id,page_id,record_id,user_id)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/records/%s/assignments/%s" % (profile_id,page_id,record_id,user_id)
+        return self.__get(request)
 
-    @Decorators.refreshToken
-    def readRecordAssignments(self,profile_id,page_id,record_id,grammar=None,offset=0,limit=1000):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records/%s/assignments?offset=%s&limit=%s" % (self.server,profile_id,page_id,record_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readRecordAssignments(self,profile_id,page_id,record_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/records/%s/assignments" % (profile_id,page_id,record_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
 
-    @Decorators.refreshToken
     def deleteRecordAssignment(self,profile_id,page_id,record_id,user_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records/%s/assignments/%s" % (self.server,profile_id,page_id,record_id,user_id)
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/pages/%s/records/%s/assignments/%s" % (profile_id,page_id,record_id,user_id)
+        return self.__delete(request)
 
-    @Decorators.refreshToken
-    def deleteRecordAssignments(self,profile_id,page_id,record_id,grammar=None,offset=0,limit=1000):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/pages/%s/records/%s/assignments?offset=%s&limit=%s" % (self.server,profile_id,page_id,record_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.delete(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def deleteRecordAssignments(self,profile_id,page_id,record_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/pages/%s/records/%s/assignments" % (profile_id,page_id,record_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__delete(request)
 
     ####################################
     ## NOTIFICATION RESOURCES
     ####################################
 
-    @Decorators.refreshToken
     def createNotification(self,profile_id,users,message):
-        try:
-            body = {"message": message, "users": users}
-            request = "https://%s/exzact/api/v60/profiles/%s/notifications" % (self.server,profile_id)
-            result = self.session.post(request,data=json.dumps(body))
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        body = {"message": message, "users": users}
+        request = "profiles/%s/notifications" % (profile_id)
+        return self.__post(request,json.dumps(body))
 
     ####################################
     ## PRIVATE MEDIA RESOURCES
     ####################################
 
-    @Decorators.refreshToken
-    def readNotification(self,profile_id,media_url):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/media?URL=%s" % (self.server,profile_id,media_url)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readPrivateMedia(self,profile_id,media_url):
+        request = "profiles/%s/media?URL=%s" % (profile_id,media_url)
+        return self.__get(request)
 
     ####################################
     ## DEVICE LICENSE RESOURCES
     ####################################
 
-    @Decorators.refreshToken
     def readDeviceLicense(self,profile_id,license_id):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/licenses/%s" % (self.server,profile_id,license_id)
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+        request = "profiles/%s/licenses/%s" % (profile_id,license_id)
+        return self.__get(request)
 
-    @Decorators.refreshToken
-    def readDeviceLicenses(self,profile_id,grammar=None,offset=0,limit=100):
-        try:
-            request = "https://%s/exzact/api/v60/profiles/%s/licenses?offset=%s&limit=%s" % (self.server,profile_id,offset,limit)
-            if grammar != None:
-                request += "&fields=%s" % grammar
-            result = self.session.get(request)
-            self.api_calls += 1
-            result.raise_for_status()
-        except Exception as e:
-            print(e)
-            return
-        else:
-            return result.json()
+    def readDeviceLicenses(self,profile_id,grammar=None,offset=None,limit=None):
+        request = "profiles/%s/licenses" % (profile_id)
+        request = self.__buildOffsetLimitGrammar(request,offset,limit,grammar)
+        return self.__get(request)
+
+    def readAllDeviceLicenses(self,profile_id,grammar=None):
+        offset = 0
+        limit = 100
+        licenses = []
+
+        while True:
+            request = self.readDeviceLicenses(profile_id,grammar=grammar,offset=0,limit=limit)
+            licenses += request
+            offset += limit
+            if len(request) < limit:
+                if offset == 0:
+                    break
+                else:
+                    offset = 0
+
+        return licenses
 
 if __name__ == "__main__":
     pass
